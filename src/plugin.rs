@@ -6,15 +6,16 @@ use std::sync::Arc;
 
 use crate::store::{KeyringStore, SessionRegistry};
 
-/// Root plugin state registered with Tauri (`tauri::Manager::manage`).
+/// Root plugin state registered with Tauri ([`tauri::Manager::manage`]).
 pub struct KeyringPlugin {
     /// Shared OS keyring accessor for the configured service name.
     pub store: Arc<KeyringStore>,
-    /// Paths passed to [`crate::commands::initialize`] (Stronghold-compatible session ids).
+    /// Snapshot paths that have been initialized for this process (Stronghold-compatible session ids).
     pub sessions: SessionRegistry,
 }
 
 impl KeyringPlugin {
+    /// Builds plugin state; normally done inside [`crate::Builder::build`].
     pub fn new(service: impl Into<String>) -> Self {
         Self {
             store: Arc::new(KeyringStore::new(service)),

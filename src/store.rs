@@ -39,14 +39,17 @@ fn digest16(data: &[u8]) -> String {
 pub struct SessionRegistry(pub Arc<Mutex<HashSet<String>>>);
 
 impl SessionRegistry {
+    /// Marks `path` as initialized for this process.
     pub fn insert(&self, path: String) {
         self.0.lock().expect("session mutex poisoned").insert(path);
     }
 
+    /// Removes a path; returns whether it was present.
     pub fn remove(&self, path: &str) -> bool {
         self.0.lock().expect("session mutex poisoned").remove(path)
     }
 
+    /// Returns whether `path` is currently tracked.
     pub fn contains(&self, path: &str) -> bool {
         self.0
             .lock()
@@ -62,12 +65,14 @@ pub struct KeyringStore {
 }
 
 impl KeyringStore {
+    /// Creates a store handle; no I/O until the first read/write (backend registers lazily).
     pub fn new(service: impl Into<String>) -> Self {
         Self {
             service: service.into(),
         }
     }
 
+    /// Keyring **service** / namespace string passed to the native backend.
     pub fn service(&self) -> &str {
         &self.service
     }
@@ -83,11 +88,13 @@ impl KeyringStore {
         entry.set_password(password).map_err(map_keyring_err)
     }
 
+    /// Encodes `value` as Base64 and stores it via [`Self::set_password`].
     pub fn set_bytes(&self, account: &str, value: &[u8]) -> Result<()> {
         let encoded = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, value);
         self.set_password(account, &encoded)
     }
 
+    /// Returns stored UTF-8, or [`None`] if the entry is missing.
     pub fn get_password(&self, account: &str) -> Result<Option<String>> {
         let entry = self.entry(account)?;
         match entry.get_password() {
@@ -102,6 +109,7 @@ impl KeyringStore {
         }
     }
 
+    /// Decodes Base64 from [`Self::get_password`]; returns [`None`] if missing.
     pub fn get_bytes(&self, account: &str) -> Result<Option<Vec<u8>>> {
         match self.get_password(account)? {
             None => Ok(None),
@@ -114,6 +122,7 @@ impl KeyringStore {
         }
     }
 
+    /// Deletes the credential if present; missing entries are treated as success.
     pub fn delete(&self, account: &str) -> Result<()> {
         let entry = self.entry(account)?;
         match entry.delete_credential() {
@@ -128,6 +137,7 @@ impl KeyringStore {
         }
     }
 
+    /// `true` if a non-empty password exists for `account`.
     pub fn exists_nonempty(&self, account: &str) -> Result<bool> {
         Ok(self
             .get_password(account)?
@@ -136,6 +146,17 @@ impl KeyringStore {
     }
 
     /// Stable account id for an unstructured secret key under a snapshot + client namespace.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use tauri_plugin_keyring_store::{BytesDto, KeyringStore};
+    ///
+    /// let store = KeyringStore::new("com.example.app");
+    /// let client = BytesDto::Text("cli".into());
+    /// let account = store.account_raw("/data/main", &client, "token");
+    /// assert!(account.starts_with("kp:v1:"));
+    /// ```
     pub fn account_raw(&self, snapshot_path: &str, client: &BytesDto, suffix: &str) -> String {
         let sd = digest16(snapshot_path.as_bytes());
         let cd = digest16(client.as_ref());
@@ -143,6 +164,7 @@ impl KeyringStore {
         format!("kp:v1:{sd}:{cd}:x:{xd}")
     }
 
+    /// Account key for a JSON **store record** (`store_key` is a logical filename).
     pub fn account_store_key(
         &self,
         snapshot_path: &str,
@@ -155,6 +177,7 @@ impl KeyringStore {
         format!("kp:v1:{sd}:{cd}:st:{kd}")
     }
 
+    /// Account key for binary **vault** payload at `vault` / `record_path`.
     pub fn account_vault_record(
         &self,
         snapshot_path: &str,

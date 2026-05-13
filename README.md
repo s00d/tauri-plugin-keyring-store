@@ -21,14 +21,15 @@ Store secrets and wallet-style procedures using the **OS credential store** (mac
 2. [Platform support](#platform-support)
 3. [Installation](#installation)
 4. [Usage](#usage)
-5. [Cargo features](#cargo-features)
-6. [Permissions](#permissions)
-7. [Relationship to Stronghold](#relationship-to-tauri-plugin-stronghold)
-8. [Development](#development)
-9. [Testing](#testing)
-10. [Contributing](#contributing)
-11. [Partners](#partners)
-12. [License](#license)
+5. [Direct account API](#direct-account-api-bulk-exists-naming-backup)
+6. [Cargo features](#cargo-features)
+7. [Permissions](#permissions)
+8. [Relationship to Stronghold](#relationship-to-tauri-plugin-stronghold)
+9. [Development](#development)
+10. [Testing](#testing)
+11. [Contributing](#contributing)
+12. [Partners](#partners)
+13. [License](#license)
 
 ---
 
@@ -59,22 +60,40 @@ Linux desktops need a Secret Service (e.g. GNOME Keyring / KWallet). Headless CI
 
 ### Automatic (recommended)
 
+From your **Tauri app root** (where `package.json` and the `tauri` script live):
+
 ```bash
-cargo add tauri-plugin-keyring-store
-# or from crate published on crates.io after release
+pnpm run tauri add keyring-store
 ```
 
-### Manual — Rust
+The CLI wires the Rust crate into `src-tauri` and adds the [`tauri-plugin-keyring-store-api`](https://www.npmjs.com/package/tauri-plugin-keyring-store-api) npm package when needed.
+
+Other package managers:
+
+```bash
+npm run tauri add keyring-store
+yarn tauri add keyring-store
+```
+
+With the CLI installed via Cargo: `cargo tauri add keyring-store`.
+
+### Manual — Rust (`src-tauri`)
 
 ```bash
 cd src-tauri
 cargo add tauri-plugin-keyring-store
 ```
 
-Disable crypto (storage IPC only):
+Or in `Cargo.toml`:
 
 ```toml
-tauri-plugin-keyring-store = { version = "0.1", default-features = false }
+tauri-plugin-keyring-store = "0.1.5"
+```
+
+Disable the SLIP10/BIP39/Ed25519 stack (storage + backup IPC only):
+
+```toml
+tauri-plugin-keyring-store = { version = "0.1.5", default-features = false }
 ```
 
 ### Manual — JavaScript
@@ -82,6 +101,8 @@ tauri-plugin-keyring-store = { version = "0.1", default-features = false }
 ```bash
 pnpm add tauri-plugin-keyring-store-api
 ```
+
+You still need `.plugin(tauri_plugin_keyring_store::init())` (or [`Builder`](https://docs.rs/tauri-plugin-keyring-store/latest/tauri_plugin_keyring_store/struct.Builder.html)) in Rust.
 
 ---
 
@@ -120,20 +141,138 @@ fn save_api_token(app: tauri::AppHandle, token: String) -> Result<(), String> {
 }
 ```
 
-Sessions opened from the frontend (`initialize`) are tracked separately; low-level [`KeyringStore`] calls use whatever account string you pass.
+Sessions opened from the frontend (`initialize`) are tracked separately; low-level [`KeyringStore`](https://docs.rs/tauri-plugin-keyring-store/latest/tauri_plugin_keyring_store/struct.KeyringStore.html) calls use whatever account string you pass.
 
-### Frontend (Stronghold-like flow)
+### Snapshot path (first argument of `KeyringSession.load`)
+
+This string is **not** a path to a file on disk on **any** OS (not the macOS Keychain file, not a Windows “vault” path, not a Linux D-Bus socket path). It is a **logical session id**: the plugin hashes it together with client / vault / record names into stable OS keyring **account** strings under your app **service** (default: Tauri bundle identifier).
+
+| You choose | Effect |
+|------------|--------|
+| Same string on every platform | Same secrets namespace everywhere (typical). |
+| Different strings | Different isolated namespaces (e.g. per user or per “wallet”). |
+| Looks like a path, e.g. `'/wallet/main'` | Fine — purely a label; no requirement that the folder exists. |
+
+Use stable ASCII-ish identifiers for portability. The second argument is the Stronghold-compatible **password**: it is **not** used to unlock a snapshot file here; Rust **zeroizes** it. Use `''` or any placeholder if you are not migrating from Stronghold.
+
+### Frontend — minimal flow
 
 ```typescript
-import { KeyringSession, KeyringClient } from 'tauri-plugin-keyring-store-api'
+import { KeyringSession } from 'tauri-plugin-keyring-store-api'
 
-const session = await KeyringSession.load('/logical/path', 'ignored-password')
+const session = await KeyringSession.load('/wallet/main', '')
 const client = await session.createClient('main')
-await client.getStore().insert('prefs', Array.from(new TextEncoder().encode('{}')))
+await client.getStore().insert('prefs', [...new TextEncoder().encode('{}')])
 await session.unload()
 ```
 
-`initialize` accepts a password for Stronghold API compatibility; it is **zeroed on the Rust side** and does not unlock a file snapshot.
+### JavaScript API reference
+
+Invokes use `plugin:keyring-store|<command>`. SLIP10 / BIP39 / Ed25519 helpers on [`KeyringVault`](guest-js/index.ts) require the Rust crate’s **`crypto`** feature (enabled by default).
+
+#### `ping`
+
+```typescript
+import { ping } from 'tauri-plugin-keyring-store-api'
+
+const value = await ping('hello') // string | null
+```
+
+#### `KeyringSession`
+
+| Method | Purpose |
+|--------|---------|
+| `KeyringSession.load(snapshotPath, password)` | Registers the session (`initialize` IPC). |
+| `session.unload()` | Drops session tracking (`destroy`). |
+| `session.createClient(client)` | First-time client namespace (`create_client`). |
+| `session.loadClient(client)` | Existing client (`load_client`). |
+| `session.save()` | **No-op** on keyring (`save` IPC for Stronghold parity). |
+
+```typescript
+import { KeyringSession } from 'tauri-plugin-keyring-store-api'
+
+const session = await KeyringSession.load('/app/secrets', '')
+const created = await session.createClient('desktop')
+const again = await session.loadClient('desktop')
+await session.save()
+await session.unload()
+```
+
+#### `KeyringClient`
+
+| Method | Purpose |
+|--------|---------|
+| `client.getStore()` | JSON-like byte records (`get_store_record` / `save_store_record` / `remove_store_record`). |
+| `client.getVault(name)` | Binary vault + crypto procedures (`save_secret` / `remove_secret` / `execute_procedure`). |
+
+#### `KeyringStoreView` (from `client.getStore()`)
+
+| Method | Purpose |
+|--------|---------|
+| `get(key)` | Read bytes or `null`. |
+| `insert(key, value, lifetime?)` | Write bytes; `lifetime` is ignored (Stronghold compat). |
+| `remove(key)` | Delete record; returns previous bytes or `null`. |
+
+```typescript
+const store = client.getStore()
+const raw = await store.get('prefs')
+await store.insert('prefs', [...new TextEncoder().encode('{}')])
+await store.remove('prefs')
+```
+
+#### `Location` and `KeyringVault`
+
+Build locations for vault records and procedure outputs:
+
+```typescript
+import { Location } from 'tauri-plugin-keyring-store-api'
+
+const generic = Location.generic('WALLET', 'seed.bin')
+const row = Location.counter('WALLET', 0)
+```
+
+| `KeyringVault` method | IPC / behavior |
+|----------------------|----------------|
+| `insert(recordPath, secret)` | `save_secret` |
+| `remove(location)` | `remove_secret` (pass `Location.generic` or `Location.counter`) |
+| `generateSLIP10Seed(output, sizeBytes?)` | `execute_procedure` SLIP10Generate |
+| `deriveSLIP10(chain, 'Seed' \| 'Key', src, output)` | SLIP10Derive |
+| `recoverBIP39(mnemonic, output, passphrase?)` | BIP39Recover |
+| `generateBIP39(output, passphrase?)` | BIP39Generate |
+| `getEd25519PublicKey(privateKeyLocation)` | PublicKey (Ed25519) |
+| `signEd25519(privateKeyLocation, msg)` | Ed25519Sign (`msg` is UTF-8) |
+
+```typescript
+import { KeyringSession, Location } from 'tauri-plugin-keyring-store-api'
+
+const session = await KeyringSession.load('/vault-a', '')
+const vault = (await session.createClient('c1')).getVault('PRIMARY')
+const out = Location.generic('PRIMARY', 'slip10-master')
+await vault.generateSLIP10Seed(out, 32)
+await session.unload()
+```
+
+Binary vault records (not the procedure helpers above):
+
+```typescript
+import { KeyringSession, Location } from 'tauri-plugin-keyring-store-api'
+
+const session = await KeyringSession.load('/vault-a', '')
+const vault = (await session.createClient('c1')).getVault('SECRETS')
+await vault.insert('blob.bin', [0xde, 0xad])
+await vault.remove(Location.generic('SECRETS', 'blob.bin'))
+await session.unload()
+```
+
+#### Naming helpers
+
+```typescript
+import { joinKeyPrefix, splitKeyPrefix, KEYRING_PREFIX_SEPARATOR } from 'tauri-plugin-keyring-store-api'
+
+const account = joinKeyPrefix('billing', 'stripe_sk')
+const [prefix, name] = splitKeyPrefix(account)
+void KEYRING_PREFIX_SEPARATOR // '.'
+```
 
 ---
 
@@ -150,11 +289,39 @@ Raw **account** strings are the OS keyring entry names under your app **service*
 | `export_passwords_plain` / `import_passwords_plain` | JSON backup blob over IPC. |
 | `export_passwords_encrypted` / `import_passwords_encrypted` | Argon2id + ChaCha20-Poly1305 envelope (always compiled; independent of the `crypto` feature). |
 
-**Naming (application convention):** use `prefix.name` with a single dot — helpers [`join_prefix`](https://docs.rs/tauri-plugin-keyring-store/latest/tauri_plugin_keyring_store/fn.join_prefix.html) / [`split_prefixed`](https://docs.rs/tauri-plugin-keyring-store/latest/tauri_plugin_keyring_store/fn.split_prefixed.html) in Rust, and `joinKeyPrefix` / `splitKeyPrefix` in guest-js. The OS keyring still does **not** support listing by prefix; keep your own index of logical keys if needed.
+**Naming (application convention):** use `prefix.name` with a single dot — helpers [`join_prefix`](https://docs.rs/tauri-plugin-keyring-store/latest/tauri_plugin_keyring_store/fn.join_prefix.html) / [`split_prefixed`](https://docs.rs/tauri-plugin-keyring-store/latest/tauri_plugin_keyring_store/fn.split_prefixed.html) in Rust, and `joinKeyPrefix` / `splitKeyPrefix` in guest-js (see [Usage → Naming helpers](#naming-helpers)). The OS keyring still does **not** support listing by prefix; keep your own index of logical keys if needed.
 
 **Security — plaintext backup:** `export_passwords_plain` / `import_passwords_plain` move secrets **in the clear** across IPC to the webview. Use only in trusted UI flows, or prefer `export_passwords_encrypted` / disk encryption.
 
-Guest-js exports: `getPasswords`, `setPasswords`, `deletePasswords`, `passwordExists`, `exportPasswordsPlain`, `importPasswordsPlain`, `exportPasswordsEncrypted`, `importPasswordsEncrypted`.
+### Guest-js examples
+
+```typescript
+import {
+  getPasswords,
+  setPasswords,
+  deletePasswords,
+  passwordExists,
+  exportPasswordsPlain,
+  importPasswordsPlain,
+  exportPasswordsEncrypted,
+  importPasswordsEncrypted,
+  joinKeyPrefix,
+} from 'tauri-plugin-keyring-store-api'
+
+const account = joinKeyPrefix('app', 'api_token')
+
+await setPasswords([{ account, secret: 'secret-value' }])
+const values = await getPasswords([account]) // (string | null)[]
+const exists = await passwordExists(account)
+
+const plain = await exportPasswordsPlain([account])
+await importPasswordsPlain(plain)
+
+const enc = await exportPasswordsEncrypted([account], 'user-passphrase')
+await importPasswordsEncrypted(enc, 'user-passphrase')
+
+await deletePasswords([account])
+```
 
 ---
 

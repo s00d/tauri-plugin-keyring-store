@@ -11,9 +11,19 @@
 use crate::error::{Error, Result};
 
 /// Separator between prefix and name (`prefix.name`).
+///
+/// See [`join_prefix`] and [`split_prefixed`].
 pub const PREFIX_SEPARATOR: char = '.';
 
 /// Builds `prefix.name` after validation.
+///
+/// # Example
+///
+/// ```
+/// use tauri_plugin_keyring_store::join_prefix;
+///
+/// assert_eq!(join_prefix("app", "token").unwrap(), "app.token");
+/// ```
 pub fn join_prefix(prefix: &str, name: &str) -> Result<String> {
     let prefix = prefix.trim();
     let name = name.trim();
@@ -35,6 +45,15 @@ pub fn join_prefix(prefix: &str, name: &str) -> Result<String> {
 }
 
 /// Parses `prefix.name` into two segments (exactly one separator, no empty segments).
+///
+/// # Example
+///
+/// ```
+/// use tauri_plugin_keyring_store::{join_prefix, split_prefixed};
+///
+/// let s = join_prefix("my", "key").unwrap();
+/// assert_eq!(split_prefixed(&s).unwrap(), ("my".into(), "key".into()));
+/// ```
 pub fn split_prefixed(account: &str) -> Result<(String, String)> {
     let account = account.trim();
     let (p, n) = account.split_once(PREFIX_SEPARATOR).ok_or_else(|| {

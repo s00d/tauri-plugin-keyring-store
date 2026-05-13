@@ -1,6 +1,6 @@
 [package]
 name = "tauri-plugin-keyring-store"
-version = "0.1.4"
+version = "0.1.5"
 authors = ["s00d"]
 description = "Stronghold-inspired secrets and crypto helpers backed by the OS credential store (keyring-core)."
 edition = "2021"

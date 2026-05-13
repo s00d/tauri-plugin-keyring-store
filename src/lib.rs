@@ -3,6 +3,9 @@
     html_favicon_url = "https://raw.githubusercontent.com/s00d/tauri-plugin-keyring-store/main/assets/docs-logo.png"
 )]
 
+//! OS keychain / credential-manager storage with a Stronghold-shaped API (sessions, vault
+//! locations, optional SLIP10/BIP39 procedures). See the crate README for IPC and guest-js.
+//!
 //! ## Rust usage
 //!
 //! ```rust,no_run
@@ -12,6 +15,18 @@
 //! fn example<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
 //!   let _svc = app.keyring().store.service();
 //! }
+//! ```
+//!
+//! ## Examples (naming helpers)
+//!
+//! ```rust
+//! use tauri_plugin_keyring_store::{join_prefix, split_prefixed};
+//!
+//! # fn main() -> Result<(), tauri_plugin_keyring_store::Error> {
+//! let account = join_prefix("billing", "stripe_sk")?;
+//! assert_eq!(split_prefixed(&account)?, ("billing".into(), "stripe_sk".into()));
+//! # Ok(())
+//! # }
 //! ```
 
 mod backend;
@@ -37,7 +52,10 @@ use tauri::plugin::{Builder as PluginBuilder, TauriPlugin};
 use tauri::{Manager, Runtime};
 
 /// Access managed [`KeyringPlugin`] state from [`tauri::App`], [`tauri::AppHandle`], or [`tauri::WebviewWindow`].
+///
+/// Registered by [`init`] or [`Builder::build`].
 pub trait KeyringExt<R: Runtime> {
+    /// Returns the shared plugin state (store + session registry).
     fn keyring(&self) -> &KeyringPlugin;
 }
 
@@ -48,12 +66,25 @@ impl<R: Runtime, T: Manager<R>> KeyringExt<R> for T {
 }
 
 /// Configure [`KeyringPlugin`] before mounting (service name defaults to the app identifier).
+///
+/// # Example
+///
+/// ```rust,no_run
+/// use tauri_plugin_keyring_store::Builder;
+///
+/// fn plugin() -> tauri::plugin::TauriPlugin<tauri::Wry> {
+///     Builder::new()
+///         .service("com.example.myapp.keyring")
+///         .build()
+/// }
+/// ```
 #[derive(Default)]
 pub struct Builder {
     service: Option<String>,
 }
 
 impl Builder {
+    /// Same as [`Default::default`].
     pub fn new() -> Self {
         Self::default()
     }
@@ -100,6 +131,8 @@ impl Builder {
 }
 
 /// Registers the plugin with default options (`service` = bundle identifier).
+///
+/// Shorthand for `Builder::default().build()`. Use [`Builder`] to set a custom service name.
 pub fn init<R: Runtime>() -> TauriPlugin<R> {
     Builder::default().build()
 }

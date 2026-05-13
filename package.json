@@ -1,6 +1,6 @@
 {
   "name": "tauri-plugin-keyring-store-api",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "author": "s00d",
   "description": "JavaScript API for tauri-plugin-keyring-store — OS keychain / credential manager storage with Stronghold-compatible sessions.",
   "license": "MIT OR Apache-2.0",

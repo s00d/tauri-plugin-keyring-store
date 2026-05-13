@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.5] - 2026-05-13
+
+### Changed
+
+- **README:** Recommend `pnpm run tauri add keyring-store` (and npm/yarn/cargo equivalents) instead of a bare `cargo add` “automatic” block; clarify **snapshot path** for all OSes; document guest-js API with examples for `ping`, session/client/store/vault, `Location`, naming helpers, and direct account backup helpers.
+
 ## [0.1.4] - 2026-05-13
 
 ### Fixed
@@ -49,6 +55,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rust [`naming`](https://docs.rs/tauri-plugin-keyring-store/latest/tauri_plugin_keyring_store/naming/index.html) helpers (`join_prefix`, `split_prefixed`) and guest-js `joinKeyPrefix` / `splitKeyPrefix`.
 - Guest-js: `getPasswords`, `setPasswords`, `deletePasswords`, `passwordExists`, `exportPasswordsPlain`, `importPasswordsPlain`, `exportPasswordsEncrypted`, `importPasswordsEncrypted`.
 
+[0.1.5]: https://github.com/s00d/tauri-plugin-keyring-store/releases/tag/v0.1.5
 [0.1.4]: https://github.com/s00d/tauri-plugin-keyring-store/releases/tag/v0.1.4
 [0.1.3]: https://github.com/s00d/tauri-plugin-keyring-store/releases/tag/v0.1.3
 [0.1.2]: https://github.com/s00d/tauri-plugin-keyring-store/releases/tag/v0.1.2

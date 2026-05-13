@@ -52,6 +52,9 @@ fn write_location(
 }
 
 /// Executes a Stronghold-shaped procedure; reads/writes key material via [`KeyringStore`] locations.
+///
+/// This module is crate-private; embedders call the **`execute_procedure`** IPC command (guest-js
+/// `Vault.*` helpers) when the **`crypto`** feature is enabled for the Rust crate.
 pub fn execute_procedure(
     store: &KeyringStore,
     snapshot_path: &str,
