@@ -1,6 +1,6 @@
 [package]
 name = "tauri-plugin-keyring-store"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["s00d"]
 description = "Stronghold-inspired secrets and crypto helpers backed by the OS credential store (keyring-core)."
 edition = "2021"
@@ -54,7 +54,8 @@ apple-native-keyring-store = { version = "1", features = ["protected"] }
 [target.'cfg(target_os = "windows")'.dependencies]
 windows-native-keyring-store = "1"
 
-[target.'cfg(target_os = "linux")'.dependencies]
+# docs.rs builds on Linux without GLib/pkg-config; skip the D-Bus backend so rustdoc can compile.
+[target.'cfg(all(target_os = "linux", not(docsrs)))'.dependencies]
 dbus-secret-service-keyring-store = { version = "1", default-features = false, features = [
   "crypto-rust",
 ] }
