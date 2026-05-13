@@ -1,0 +1,20 @@
+.github/workflows/ci.yml
+  s_a5af1491f2be3e::t_a8ba6301de2820 25-30
+  s_a5af1491f2be3e::t_71f7c1b7047c2d 84-90
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "d8ad6dcc275c1aaa3be8310b4bbe8f66ede5c38b",
+  "prompts": {},
+  "sessions": {
+    "s_a5af1491f2be3e": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "145e7e71-d4db-44dd-9c13-52a78cd97ae8",
+        "model": "default"
+      },
+      "human_author": "Pavel Kuzmin <Virus191288@gmail.com>"
+    }
+  }
+}
