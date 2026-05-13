@@ -7,7 +7,6 @@ const host = process.env.TAURI_DEV_HOST;
 export default defineConfig({
   plugins: [vue()],
 
-  // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   clearScreen: false,
   server: {
     host: host || false,

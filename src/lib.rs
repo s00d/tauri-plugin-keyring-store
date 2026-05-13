@@ -18,14 +18,18 @@ mod backend;
 mod commands;
 mod error;
 mod models;
+pub mod naming;
 mod plugin;
 mod store;
+
+mod backup_crypto;
 
 #[cfg(feature = "crypto")]
 mod crypto;
 
 pub use error::{Error, Result};
 pub use models::*;
+pub use naming::{join_prefix, split_prefixed, PREFIX_SEPARATOR};
 pub use plugin::KeyringPlugin;
 pub use store::{KeyringStore, SessionRegistry};
 
@@ -70,6 +74,14 @@ impl Builder {
                 Ok(())
             })
             .invoke_handler(tauri::generate_handler![
+                commands::get_passwords,
+                commands::set_passwords,
+                commands::delete_passwords,
+                commands::password_exists,
+                commands::export_passwords_plain,
+                commands::import_passwords_plain,
+                commands::export_passwords_encrypted,
+                commands::import_passwords_encrypted,
                 commands::ping,
                 commands::initialize,
                 commands::destroy,

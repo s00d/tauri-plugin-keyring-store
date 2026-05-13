@@ -153,3 +153,39 @@ pub enum ProcedureDto {
         msg: String,
     },
 }
+
+/// One row for [`crate::commands::set_passwords`] (bulk set).
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PasswordEntryDto {
+    pub account: String,
+    pub secret: String,
+}
+
+/// Single entry in a plaintext password backup (export/import).
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PasswordBackupEntryDto {
+    pub account: String,
+    /// [`None`] when the credential did not exist at export time.
+    pub secret: Option<String>,
+}
+
+/// Plaintext backup blob shared by export/import JSON over IPC.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PasswordBackupPlainDto {
+    /// Schema version for forward compatibility.
+    pub format_version: u32,
+    pub entries: Vec<PasswordBackupEntryDto>,
+}
+
+/// Argon2id + ChaCha20-Poly1305 backup envelope (always built).
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PasswordBackupEncryptedDto {
+    pub format_version: u32,
+    pub salt: String,
+    pub nonce: String,
+    pub ciphertext: String,
+}

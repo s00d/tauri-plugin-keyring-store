@@ -8,7 +8,168 @@ use zeroize::Zeroize;
 
 use crate::models::*;
 use crate::plugin::KeyringPlugin;
+use crate::store::KeyringStore;
 use crate::Result;
+
+/// Max items per bulk / backup list (doS / IPC payload guard).
+const MAX_BULK_ITEMS: usize = 256;
+
+const BACKUP_FORMAT_VERSION: u32 = 1;
+
+fn normalize_account(account: String) -> crate::Result<String> {
+    let account = account.trim().to_owned();
+    if account.is_empty() {
+        return Err(crate::Error::Naming("account must not be empty".into()));
+    }
+    if account.len() > 512 {
+        return Err(crate::Error::Naming(
+            "account string too long (max 512)".into(),
+        ));
+    }
+    Ok(account)
+}
+
+fn ensure_bulk_len(n: usize) -> crate::Result<()> {
+    if n > MAX_BULK_ITEMS {
+        return Err(crate::Error::Naming(format!(
+            "too many items (max {MAX_BULK_ITEMS})"
+        )));
+    }
+    Ok(())
+}
+
+fn apply_plain_backup(store: &KeyringStore, backup: PasswordBackupPlainDto) -> crate::Result<()> {
+    if backup.format_version != BACKUP_FORMAT_VERSION {
+        return Err(crate::Error::Encoding(format!(
+            "unsupported backup format version {} (expected {BACKUP_FORMAT_VERSION})",
+            backup.format_version
+        )));
+    }
+    for row in backup.entries {
+        if let Some(secret) = row.secret {
+            let account = normalize_account(row.account)?;
+            store.set_password(&account, &secret)?;
+        }
+    }
+    Ok(())
+}
+
+async fn collect_plain_backup<R: Runtime>(
+    app: &AppHandle<R>,
+    accounts: Vec<String>,
+) -> Result<PasswordBackupPlainDto> {
+    ensure_bulk_len(accounts.len())?;
+    let store = app.state::<KeyringPlugin>().store.clone();
+    let mut entries = Vec::with_capacity(accounts.len());
+    for a in accounts {
+        let account = normalize_account(a)?;
+        let secret = store.get_password(&account)?;
+        entries.push(PasswordBackupEntryDto { account, secret });
+    }
+    Ok(PasswordBackupPlainDto {
+        format_version: BACKUP_FORMAT_VERSION,
+        entries,
+    })
+}
+
+#[command]
+pub(crate) async fn get_passwords<R: Runtime>(
+    app: AppHandle<R>,
+    accounts: Vec<String>,
+) -> Result<Vec<Option<String>>> {
+    ensure_bulk_len(accounts.len())?;
+    let store = app.state::<KeyringPlugin>().store.clone();
+    let mut out = Vec::with_capacity(accounts.len());
+    for a in accounts {
+        let account = normalize_account(a)?;
+        out.push(store.get_password(&account)?);
+    }
+    Ok(out)
+}
+
+#[command]
+pub(crate) async fn set_passwords<R: Runtime>(
+    app: AppHandle<R>,
+    entries: Vec<PasswordEntryDto>,
+) -> Result<()> {
+    ensure_bulk_len(entries.len())?;
+    let store = app.state::<KeyringPlugin>().store.clone();
+    for e in entries {
+        let account = normalize_account(e.account)?;
+        store.set_password(&account, &e.secret)?;
+    }
+    Ok(())
+}
+
+#[command]
+pub(crate) async fn delete_passwords<R: Runtime>(
+    app: AppHandle<R>,
+    accounts: Vec<String>,
+) -> Result<()> {
+    ensure_bulk_len(accounts.len())?;
+    let store = app.state::<KeyringPlugin>().store.clone();
+    for a in accounts {
+        let account = normalize_account(a)?;
+        store.delete(&account)?;
+    }
+    Ok(())
+}
+
+#[command]
+pub(crate) async fn password_exists<R: Runtime>(
+    app: AppHandle<R>,
+    account: String,
+) -> Result<bool> {
+    let account = normalize_account(account)?;
+    let store = app.state::<KeyringPlugin>().store.clone();
+    store.exists_nonempty(&account)
+}
+
+#[command]
+pub(crate) async fn export_passwords_plain<R: Runtime>(
+    app: AppHandle<R>,
+    accounts: Vec<String>,
+) -> Result<PasswordBackupPlainDto> {
+    collect_plain_backup(&app, accounts).await
+}
+
+#[command]
+pub(crate) async fn import_passwords_plain<R: Runtime>(
+    app: AppHandle<R>,
+    backup: PasswordBackupPlainDto,
+) -> Result<()> {
+    let store = app.state::<KeyringPlugin>().store.clone();
+    apply_plain_backup(store.as_ref(), backup)
+}
+
+#[command]
+pub(crate) async fn export_passwords_encrypted<R: Runtime>(
+    app: AppHandle<R>,
+    accounts: Vec<String>,
+    passphrase: String,
+) -> Result<PasswordBackupEncryptedDto> {
+    let plain = collect_plain_backup(&app, accounts).await?;
+    let mut pw = passphrase.into_bytes();
+    let json = serde_json::to_vec(&plain).map_err(|e| crate::Error::Encoding(e.to_string()))?;
+    let out = crate::backup_crypto::encrypt_plain_bytes(&json, &pw);
+    pw.zeroize();
+    out
+}
+
+#[command]
+pub(crate) async fn import_passwords_encrypted<R: Runtime>(
+    app: AppHandle<R>,
+    backup: PasswordBackupEncryptedDto,
+    passphrase: String,
+) -> Result<()> {
+    let mut pw = passphrase.into_bytes();
+    let plain = crate::backup_crypto::decrypt_to_plain(&backup, &pw)?;
+    pw.zeroize();
+    let backup_plain: PasswordBackupPlainDto =
+        serde_json::from_slice(&plain).map_err(|e| crate::Error::Encoding(e.to_string()))?;
+    let store = app.state::<KeyringPlugin>().store.clone();
+    apply_plain_backup(store.as_ref(), backup_plain)
+}
 
 #[command]
 pub(crate) async fn ping<R: Runtime>(

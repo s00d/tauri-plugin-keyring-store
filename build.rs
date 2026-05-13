@@ -1,4 +1,12 @@
 const COMMANDS: &[&str] = &[
+    "get_passwords",
+    "set_passwords",
+    "delete_passwords",
+    "password_exists",
+    "export_passwords_plain",
+    "import_passwords_plain",
+    "export_passwords_encrypted",
+    "import_passwords_encrypted",
     "ping",
     "initialize",
     "destroy",

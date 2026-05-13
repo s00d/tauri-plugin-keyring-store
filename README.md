@@ -137,11 +137,32 @@ await session.unload()
 
 ---
 
+## Direct account API (bulk, exists, naming, backup)
+
+Raw **account** strings are the OS keyring entry names under your app **service** (defaults to the bundle identifier). These commands avoid session hashing — useful for app-controlled keys.
+
+| IPC command | Purpose |
+|-------------|---------|
+| `get_passwords` | Read many UTF-8 secrets (parallel `Vec`, max **256** accounts per call). |
+| `set_passwords` | Write many `{ account, secret }` pairs. |
+| `delete_passwords` | Delete many accounts. |
+| `password_exists` | `true` if a non-empty secret exists (`exists_nonempty`). |
+| `export_passwords_plain` / `import_passwords_plain` | JSON backup blob over IPC. |
+| `export_passwords_encrypted` / `import_passwords_encrypted` | Argon2id + ChaCha20-Poly1305 envelope (always compiled; independent of the `crypto` feature). |
+
+**Naming (application convention):** use `prefix.name` with a single dot — helpers [`join_prefix`](https://docs.rs/tauri-plugin-keyring/latest/tauri_plugin_keyring/fn.join_prefix.html) / [`split_prefixed`](https://docs.rs/tauri-plugin-keyring/latest/tauri_plugin_keyring/fn.split_prefixed.html) in Rust, and `joinKeyPrefix` / `splitKeyPrefix` in guest-js. The OS keyring still does **not** support listing by prefix; keep your own index of logical keys if needed.
+
+**Security — plaintext backup:** `export_passwords_plain` / `import_passwords_plain` move secrets **in the clear** across IPC to the webview. Use only in trusted UI flows, or prefer `export_passwords_encrypted` / disk encryption.
+
+Guest-js exports: `getPasswords`, `setPasswords`, `deletePasswords`, `passwordExists`, `exportPasswordsPlain`, `importPasswordsPlain`, `exportPasswordsEncrypted`, `importPasswordsEncrypted`.
+
+---
+
 ## Cargo features
 
 | Feature | Default | Description |
 |---------|---------|-------------|
-| `crypto` | yes | SLIP10 / BIP39 / Ed25519 `execute_procedure` |
+| `crypto` | yes | SLIP10 / BIP39 / Ed25519 `execute_procedure` via [`iota-crypto`](https://crates.io/crates/iota-crypto). Encrypted backup (Argon2 + ChaCha) is **always** available without this flag. |
 
 ---
 

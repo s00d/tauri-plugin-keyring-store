@@ -328,3 +328,125 @@ export async function ping(value?: string): Promise<string | null> {
     }
   }).then((r) => (r.value ? r.value : null))
 }
+
+/** Same separator as Rust [`PREFIX_SEPARATOR`] (`prefix.name`). */
+export const KEYRING_PREFIX_SEPARATOR = '.' as const
+
+/** Bulk / direct account IPC DTO (matches Rust [`PasswordEntryDto`]). */
+export interface PasswordEntryDto {
+  account: string
+  secret: string
+}
+
+export interface PasswordBackupEntryDto {
+  account: string
+  secret?: string | null
+}
+
+export interface PasswordBackupPlainDto {
+  formatVersion: number
+  entries: PasswordBackupEntryDto[]
+}
+
+export interface PasswordBackupEncryptedDto {
+  formatVersion: number
+  salt: string
+  nonce: string
+  ciphertext: string
+}
+
+/** Read many UTF-8 secrets by raw account string (order preserved). */
+export async function getPasswords(
+  accounts: string[]
+): Promise<(string | null)[]> {
+  return await invoke<(string | null)[]>('plugin:keyring|get_passwords', {
+    accounts
+  })
+}
+
+/** Write many UTF-8 secrets. */
+export async function setPasswords(entries: PasswordEntryDto[]): Promise<void> {
+  await invoke('plugin:keyring|set_passwords', { entries })
+}
+
+/** Delete many keyring entries by account string. */
+export async function deletePasswords(accounts: string[]): Promise<void> {
+  await invoke('plugin:keyring|delete_passwords', { accounts })
+}
+
+/** True if the account exists with non-empty secret (matches Rust `exists_nonempty`). */
+export async function passwordExists(account: string): Promise<boolean> {
+  return await invoke<boolean>('plugin:keyring|password_exists', { account })
+}
+
+/** Plaintext backup over IPC — **security**: secrets are exposed to the webview process. */
+export async function exportPasswordsPlain(
+  accounts: string[]
+): Promise<PasswordBackupPlainDto> {
+  return await invoke<PasswordBackupPlainDto>(
+    'plugin:keyring|export_passwords_plain',
+    { accounts }
+  )
+}
+
+export async function importPasswordsPlain(
+  backup: PasswordBackupPlainDto
+): Promise<void> {
+  await invoke('plugin:keyring|import_passwords_plain', { backup })
+}
+
+/** Encrypted backup (Argon2id + ChaCha20-Poly1305); always available (independent of Rust `crypto` / iota-crypto). */
+export async function exportPasswordsEncrypted(
+  accounts: string[],
+  passphrase: string
+): Promise<PasswordBackupEncryptedDto> {
+  return await invoke<PasswordBackupEncryptedDto>(
+    'plugin:keyring|export_passwords_encrypted',
+    { accounts, passphrase }
+  )
+}
+
+export async function importPasswordsEncrypted(
+  backup: PasswordBackupEncryptedDto,
+  passphrase: string
+): Promise<void> {
+  await invoke('plugin:keyring|import_passwords_encrypted', {
+    backup,
+    passphrase
+  })
+}
+
+/** Matches Rust [`join_prefix`]. */
+export function joinKeyPrefix(prefix: string, name: string): string {
+  const p = prefix.trim()
+  const n = name.trim()
+  if (!p.length || !n.length) {
+    throw new Error('prefix and name must be non-empty after trim')
+  }
+  if (p.includes('.') || n.includes('.')) {
+    throw new Error("prefix and name must not contain '.'")
+  }
+  return `${p}.${n}`
+}
+
+/** Matches Rust [`split_prefixed`] for exactly two segments. */
+export function splitKeyPrefix(account: string): [string, string] {
+  const a = account.trim()
+  const i = a.indexOf('.')
+  if (i <= 0 || i === a.length - 1) {
+    throw new Error(
+      "account must contain exactly one '.' between prefix and name"
+    )
+  }
+  const prefix = a.slice(0, i)
+  const name = a.slice(i + 1)
+  if (!prefix.length || !name.length) {
+    throw new Error('prefix and name segments must be non-empty')
+  }
+  if (name.includes('.')) {
+    throw new Error(
+      'only one separator allowed; use nested naming in the app layer'
+    )
+  }
+  return [prefix, name]
+}

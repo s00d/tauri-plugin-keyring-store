@@ -4,6 +4,14 @@ Default permissions for the plugin
 
 #### This default permission set includes the following:
 
+- `allow-get-passwords`
+- `allow-set-passwords`
+- `allow-delete-passwords`
+- `allow-password-exists`
+- `allow-export-passwords-plain`
+- `allow-import-passwords-plain`
+- `allow-export-passwords-encrypted`
+- `allow-import-passwords-encrypted`
 - `allow-ping`
 - `allow-initialize`
 - `allow-destroy`
@@ -48,6 +56,32 @@ Enables the create_client command without any pre-configured scope.
 <td>
 
 Denies the create_client command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`keyring:allow-delete-passwords`
+
+</td>
+<td>
+
+Enables the delete_passwords command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`keyring:deny-delete-passwords`
+
+</td>
+<td>
+
+Denies the delete_passwords command without any pre-configured scope.
 
 </td>
 </tr>
@@ -107,6 +141,84 @@ Denies the execute_procedure command without any pre-configured scope.
 <tr>
 <td>
 
+`keyring:allow-export-passwords-encrypted`
+
+</td>
+<td>
+
+Enables the export_passwords_encrypted command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`keyring:deny-export-passwords-encrypted`
+
+</td>
+<td>
+
+Denies the export_passwords_encrypted command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`keyring:allow-export-passwords-plain`
+
+</td>
+<td>
+
+Enables the export_passwords_plain command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`keyring:deny-export-passwords-plain`
+
+</td>
+<td>
+
+Denies the export_passwords_plain command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`keyring:allow-get-passwords`
+
+</td>
+<td>
+
+Enables the get_passwords command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`keyring:deny-get-passwords`
+
+</td>
+<td>
+
+Denies the get_passwords command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
 `keyring:allow-get-store-record`
 
 </td>
@@ -126,6 +238,58 @@ Enables the get_store_record command without any pre-configured scope.
 <td>
 
 Denies the get_store_record command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`keyring:allow-import-passwords-encrypted`
+
+</td>
+<td>
+
+Enables the import_passwords_encrypted command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`keyring:deny-import-passwords-encrypted`
+
+</td>
+<td>
+
+Denies the import_passwords_encrypted command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`keyring:allow-import-passwords-plain`
+
+</td>
+<td>
+
+Enables the import_passwords_plain command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`keyring:deny-import-passwords-plain`
+
+</td>
+<td>
+
+Denies the import_passwords_plain command without any pre-configured scope.
 
 </td>
 </tr>
@@ -178,6 +342,32 @@ Enables the load_client command without any pre-configured scope.
 <td>
 
 Denies the load_client command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`keyring:allow-password-exists`
+
+</td>
+<td>
+
+Enables the password_exists command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`keyring:deny-password-exists`
+
+</td>
+<td>
+
+Denies the password_exists command without any pre-configured scope.
 
 </td>
 </tr>
@@ -334,6 +524,32 @@ Enables the save_store_record command without any pre-configured scope.
 <td>
 
 Denies the save_store_record command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`keyring:allow-set-passwords`
+
+</td>
+<td>
+
+Enables the set_passwords command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`keyring:deny-set-passwords`
+
+</td>
+<td>
+
+Denies the set_passwords command without any pre-configured scope.
 
 </td>
 </tr>

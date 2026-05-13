@@ -2,7 +2,9 @@
 
 use serde_json::json;
 use tauri_plugin_keyring::{
-    BytesDto, DurationDto, KeyType, LocationDto, PingRequest, ProcedureDto, Slip10DeriveInputDto,
+    BytesDto, DurationDto, KeyType, LocationDto, PasswordBackupEncryptedDto,
+    PasswordBackupEntryDto, PasswordBackupPlainDto, PasswordEntryDto, PingRequest, ProcedureDto,
+    Slip10DeriveInputDto,
 };
 
 #[test]
@@ -84,4 +86,41 @@ fn public_key_procedure_ed25519() {
     };
     let v = serde_json::to_value(&p).unwrap();
     assert_eq!(v["payload"]["type"], "ed25519");
+}
+
+#[test]
+fn password_entry_dto_camel_case() {
+    let j = json!([{"account": "a", "secret": "s"}]);
+    let v: Vec<PasswordEntryDto> = serde_json::from_value(j).unwrap();
+    assert_eq!(v[0].account, "a");
+    assert_eq!(v[0].secret, "s");
+}
+
+#[test]
+fn password_backup_plain_roundtrip() {
+    let b = PasswordBackupPlainDto {
+        format_version: 1,
+        entries: vec![PasswordBackupEntryDto {
+            account: "k".into(),
+            secret: Some("v".into()),
+        }],
+    };
+    let s = serde_json::to_string(&b).unwrap();
+    let back: PasswordBackupPlainDto = serde_json::from_str(&s).unwrap();
+    assert_eq!(back.format_version, 1);
+    assert_eq!(back.entries[0].account, "k");
+    assert_eq!(back.entries[0].secret.as_deref(), Some("v"));
+}
+
+#[test]
+fn password_backup_encrypted_dto_shape() {
+    let d = PasswordBackupEncryptedDto {
+        format_version: 1,
+        salt: "YQ==".into(),
+        nonce: "Yg==".into(),
+        ciphertext: "Yw==".into(),
+    };
+    let v = serde_json::to_value(&d).unwrap();
+    assert_eq!(v["formatVersion"], 1);
+    assert!(v["salt"].as_str().is_some());
 }

@@ -20,6 +20,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [features]
 default = ["crypto"]
+# SLIP10 / BIP39 / Ed25519 procedures via `iota-crypto` only. Encrypted backup (Argon2 + ChaCha) is always built.
 crypto = ["dep:iota-crypto"]
 
 [dependencies]
@@ -39,7 +40,10 @@ iota-crypto = { version = "0.23", optional = true, default-features = false, fea
   "slip10",
   "ed25519",
   "random",
-] }
+]}
+argon2 = { version = "0.5", default-features = false, features = ["std"] }
+chacha20poly1305 = { version = "0.10" }
+getrandom = { version = "0.2" }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 apple-native-keyring-store = { version = "1", features = ["keychain"] }

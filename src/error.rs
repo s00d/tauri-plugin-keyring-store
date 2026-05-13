@@ -18,6 +18,8 @@ pub enum Error {
     Encoding(String),
     #[error("crypto procedure error: {0}")]
     Crypto(String),
+    #[error("naming / validation error: {0}")]
+    Naming(String),
 }
 
 impl Serialize for Error {
