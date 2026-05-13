@@ -1,6 +1,6 @@
 [package]
 name = "tauri-plugin-keyring-store"
-version = "0.1.3"
+version = "0.1.4"
 authors = ["s00d"]
 description = "Stronghold-inspired secrets and crypto helpers backed by the OS credential store (keyring-core)."
 edition = "2021"
@@ -15,9 +15,9 @@ links = "tauri-plugin-keyring-store"
 
 [package.metadata.docs.rs]
 all-features = true
-# Avoid Linux-only GTK/WebKit graph on docs.rs; desktop Tauri matches macOS anyway.
-default-target = "x86_64-apple-darwin"
-rustc-args = ["--cfg", "docsrs"]
+# Do not set `rustc-args = ["--cfg", "docsrs"]`: that applies to all dependencies and breaks
+# serde_derive + serde on nightly (see serde-rs/serde#2994). docs.rs passes `--cfg docsrs` to
+# rustdoc for the crate being documented; use `cfg(doc)` in Cargo.toml / code for Linux stubs.
 rustdoc-args = ["--cfg", "docsrs"]
 
 [features]
@@ -58,8 +58,8 @@ apple-native-keyring-store = { version = "1", features = ["protected"] }
 [target.'cfg(target_os = "windows")'.dependencies]
 windows-native-keyring-store = "1"
 
-# docs.rs builds on Linux without GLib/pkg-config; skip the D-Bus backend so rustdoc can compile.
-[target.'cfg(all(target_os = "linux", not(docsrs)))'.dependencies]
+# Linux D-Bus backend is omitted when documenting (`cfg(doc)`), e.g. docs.rs without host GLib.
+[target.'cfg(all(target_os = "linux", not(doc)))'.dependencies]
 dbus-secret-service-keyring-store = { version = "1", default-features = false, features = [
   "crypto-rust",
 ] }

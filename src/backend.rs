@@ -39,7 +39,7 @@ fn register_default_store() -> Result<(), String> {
     Ok(())
 }
 
-#[cfg(all(target_os = "linux", not(docsrs)))]
+#[cfg(all(target_os = "linux", not(doc)))]
 fn register_default_store() -> Result<(), String> {
     let store = dbus_secret_service_keyring_store::Store::new()
         .map_err(|e| format!("dbus secret service init failed: {e}"))?;
@@ -47,8 +47,8 @@ fn register_default_store() -> Result<(), String> {
     Ok(())
 }
 
-/// docs.rs has no system GLib/Secret Service; the D-Bus dependency is not linked (see `Cargo.toml`).
-#[cfg(all(target_os = "linux", docsrs))]
+/// Documentation builds have no system GLib/Secret Service; the D-Bus crate is not linked (see `Cargo.toml`).
+#[cfg(all(target_os = "linux", doc))]
 fn register_default_store() -> Result<(), String> {
     Err("linux keyring backend is not built for documentation (docs.rs has no host keyring stack)".into())
 }
