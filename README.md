@@ -5,8 +5,8 @@
 [![npm version](https://img.shields.io/npm/v/tauri-plugin-keyring-store-api/latest?style=for-the-badge)](https://www.npmjs.com/package/tauri-plugin-keyring-store-api)
 [![Crates.io](https://img.shields.io/crates/v/tauri-plugin-keyring-store?style=for-the-badge)](https://crates.io/crates/tauri-plugin-keyring-store)
 [![Documentation](https://img.shields.io/badge/docs-docs.rs-blue?style=for-the-badge)](https://docs.rs/tauri-plugin-keyring-store/)
-[![GitHub issues](https://img.shields.io/github/issues/s00d/tauri-plugin-keyring?style=for-the-badge)](https://github.com/s00d/tauri-plugin-keyring/issues)
-[![GitHub stars](https://img.shields.io/github/stars/s00d/tauri-plugin-keyring?style=for-the-badge)](https://github.com/s00d/tauri-plugin-keyring/stargazers)
+[![GitHub issues](https://img.shields.io/github/issues/s00d/tauri-plugin-keyring-store?style=for-the-badge)](https://github.com/s00d/tauri-plugin-keyring-store/issues)
+[![GitHub stars](https://img.shields.io/github/stars/s00d/tauri-plugin-keyring-store?style=for-the-badge)](https://github.com/s00d/tauri-plugin-keyring-store/stargazers)
 [![Donate](https://img.shields.io/badge/Donate-Donationalerts-ff4081?style=for-the-badge)](https://www.donationalerts.com/r/s00d88)
 
 # Tauri Plugin Keyring Store
@@ -212,7 +212,7 @@ rsvg-convert -w 128 -h 128 assets/docs-logo.svg -o assets/docs-logo.png
 
 ## Contributing
 
-Issues and pull requests are welcome on [GitHub](https://github.com/s00d/tauri-plugin-keyring).
+Issues and pull requests are welcome on [GitHub](https://github.com/s00d/tauri-plugin-keyring-store).
 
 ---
 

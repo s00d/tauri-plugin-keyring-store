@@ -1,6 +1,6 @@
 #![doc(
-    html_logo_url = "https://raw.githubusercontent.com/s00d/tauri-plugin-keyring/main/assets/docs-logo.png",
-    html_favicon_url = "https://raw.githubusercontent.com/s00d/tauri-plugin-keyring/main/assets/docs-logo.png"
+    html_logo_url = "https://raw.githubusercontent.com/s00d/tauri-plugin-keyring-store/main/assets/docs-logo.png",
+    html_favicon_url = "https://raw.githubusercontent.com/s00d/tauri-plugin-keyring-store/main/assets/docs-logo.png"
 )]
 
 //! ## Rust usage
