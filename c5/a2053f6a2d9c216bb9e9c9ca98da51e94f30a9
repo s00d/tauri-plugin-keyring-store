@@ -1,0 +1,19 @@
+package.json
+  s_a5af1491f2be3e::t_2cf1fc6d9238c7 5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "c5a2053f6a2d9c216bb9e9c9ca98da51e94f30a9",
+  "prompts": {},
+  "sessions": {
+    "s_a5af1491f2be3e": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "145e7e71-d4db-44dd-9c13-52a78cd97ae8",
+        "model": "default"
+      },
+      "human_author": "Pavel Kuzmin <Virus191288@gmail.com>"
+    }
+  }
+}
