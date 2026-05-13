@@ -1,0 +1,23 @@
+examples/tauri-app/jsconfig.json
+  s_a5af1491f2be3e::t_efc82303dbcc0d 16
+examples/tauri-app/src-tauri/.gitignore
+  s_a5af1491f2be3e::t_1b96193141ee13 5-6
+examples/tauri-app/src/vite-env.d.ts
+  s_a5af1491f2be3e::t_242375b11aab7f 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "da8362d71bc1acdb3399232bf95de1b3fcc38079",
+  "prompts": {},
+  "sessions": {
+    "s_a5af1491f2be3e": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "145e7e71-d4db-44dd-9c13-52a78cd97ae8",
+        "model": "default"
+      },
+      "human_author": null
+    }
+  }
+}
