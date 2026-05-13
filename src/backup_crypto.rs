@@ -30,10 +30,10 @@ fn derive_key(passphrase: &[u8], salt: &[u8]) -> Result<[u8; KEY_LEN]> {
 /// Encrypt UTF-8 plaintext bytes (typically JSON of [`crate::models::PasswordBackupPlainDto`]).
 pub fn encrypt_plain_bytes(plain: &[u8], passphrase: &[u8]) -> Result<PasswordBackupEncryptedDto> {
     let mut salt = [0u8; SALT_LEN];
-    getrandom::getrandom(&mut salt).map_err(|e| Error::Crypto(format!("rng salt: {e}")))?;
+    getrandom::fill(&mut salt).map_err(|e| Error::Crypto(format!("rng salt: {e}")))?;
 
     let mut nonce = [0u8; NONCE_LEN];
-    getrandom::getrandom(&mut nonce).map_err(|e| Error::Crypto(format!("rng nonce: {e}")))?;
+    getrandom::fill(&mut nonce).map_err(|e| Error::Crypto(format!("rng nonce: {e}")))?;
 
     let key = derive_key(passphrase, &salt)?;
     let cipher = ChaCha20Poly1305::new(Key::from_slice(&key));
