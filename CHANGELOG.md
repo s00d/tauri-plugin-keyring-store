@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.3] - 2026-05-13
+
+### Fixed
+
+- **docs.rs:** Pin `generic-array` to **0.14.9** so `cargo rustdoc` under nightly `--cfg docsrs` does not compile **0.14.7** (still uses removed `doc_auto_cfg`). Keeps `default-target = "x86_64-apple-darwin"` from 0.1.2.
+
 ## [0.1.2] - 2026-05-13
 
 ### Fixed
@@ -37,6 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rust [`naming`](https://docs.rs/tauri-plugin-keyring-store/latest/tauri_plugin_keyring_store/naming/index.html) helpers (`join_prefix`, `split_prefixed`) and guest-js `joinKeyPrefix` / `splitKeyPrefix`.
 - Guest-js: `getPasswords`, `setPasswords`, `deletePasswords`, `passwordExists`, `exportPasswordsPlain`, `importPasswordsPlain`, `exportPasswordsEncrypted`, `importPasswordsEncrypted`.
 
+[0.1.3]: https://github.com/s00d/tauri-plugin-keyring-store/releases/tag/v0.1.3
 [0.1.2]: https://github.com/s00d/tauri-plugin-keyring-store/releases/tag/v0.1.2
 [0.1.1]: https://github.com/s00d/tauri-plugin-keyring-store/releases/tag/v0.1.1
 [0.1.0]: https://github.com/s00d/tauri-plugin-keyring-store/releases/tag/v0.1.0

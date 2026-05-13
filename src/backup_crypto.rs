@@ -1,5 +1,9 @@
 //! Encrypted backup envelope (Argon2id + ChaCha20-Poly1305), always available.
 //! (The `crypto` Cargo feature only toggles SLIP10/BIP39/Ed25519 procedures, not this module.)
+//!
+//! We pin `generic-array` 0.14.9+ for docs.rs; `chacha20poly1305` still calls deprecated `GenericArray::from_slice` until the ecosystem moves to generic-array 1.x.
+
+#![allow(deprecated)]
 
 use argon2::{Algorithm, Argon2, Params, Version};
 use base64::Engine;
