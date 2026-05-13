@@ -1,0 +1,62 @@
+src/plugin.rs
+  s_a5af1491f2be3e::t_2ba12097e3e7e3 9,13,18
+src/store.rs
+  s_a5af1491f2be3e::t_fe4716d953769a 180
+  s_a5af1491f2be3e::t_bee69c42c2cf24 149-159
+  s_a5af1491f2be3e::t_b85f0c7bc1b8e2 167
+  s_a5af1491f2be3e::t_c1054662ebddf4 42,47,52,68,75,91,97,112,125,140
+CHANGELOG.md
+  s_a5af1491f2be3e::t_4c55d263fcfeef 58
+  s_a5af1491f2be3e::t_6d358e96d21fc8 8-13
+src/models.rs
+  s_a5af1491f2be3e::t_88d7453d5e15fa 125,127
+  s_a5af1491f2be3e::t_633815097bde54 204
+  s_a5af1491f2be3e::t_442ac6dce48aab 12,14,20,22
+  s_a5af1491f2be3e::t_af89a00a7a701a 41,43
+  s_a5af1491f2be3e::t_ce8075bac3408c 1-4
+  s_a5af1491f2be3e::t_dab86c0ca58047 174,178,180,182,186,188,190,192,195,197,199,201,206,208,211,213,216,220,222,225,230,234,236,244,246,256,264,266,268,270
+  s_a5af1491f2be3e::t_ff1f1f06dad363 66-76
+  s_a5af1491f2be3e::t_903ea47958bf9a 27-37
+  s_a5af1491f2be3e::t_c053171a4703bc 80,82
+  s_a5af1491f2be3e::t_f6f8c533a3da8e 94,96-109,114,116,118,123
+src/naming.rs
+  s_a5af1491f2be3e::t_5e5987d307453a 14-15
+  s_a5af1491f2be3e::t_febae5ac7ff300 48-56
+  s_a5af1491f2be3e::t_6705579856c143 19-26
+src/error.rs
+  s_a5af1491f2be3e::t_2783e9c64b56ac 5,8,11,14,17,20,23,26,29
+src/lib.rs
+  s_a5af1491f2be3e::t_61d139839d8a50 55-56,58
+  s_a5af1491f2be3e::t_2b6314ccf100b7 6-8,19-29
+  s_a5af1491f2be3e::t_f60ac51ba412f6 69-80,87
+  s_a5af1491f2be3e::t_37f5648aa3ed1b 134
+  s_a5af1491f2be3e::t_884eeaaf6ff3b4 135
+package.json
+  s_a5af1491f2be3e::t_eff57dd0bd531b 3
+Cargo.toml
+  s_a5af1491f2be3e::t_14c6667e66fa0f 3
+src/crypto.rs
+  s_a5af1491f2be3e::t_1465b1d6587321 55-57
+README.md
+  s_a5af1491f2be3e::t_6a37afe6f75df6 255-266
+  s_a5af1491f2be3e::t_bdf2b0f4898623 292,296-324
+  s_a5af1491f2be3e::t_dac0f382bd20a8 24-32
+  s_a5af1491f2be3e::t_78ddfd33d1e583 63-64,66-75,78-80,87,90-96,105
+  s_a5af1491f2be3e::t_4be881616e0f2a 144-154,156-158,161,163,165-197,201-254,267-275
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "78618fb6b7ac106f25b2e862dde1f9f6b91f2128",
+  "prompts": {},
+  "sessions": {
+    "s_a5af1491f2be3e": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "145e7e71-d4db-44dd-9c13-52a78cd97ae8",
+        "model": "default"
+      },
+      "human_author": "Pavel Kuzmin <Virus191288@gmail.com>"
+    }
+  }
+}
