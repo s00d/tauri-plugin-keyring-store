@@ -1,0 +1,23 @@
+Cargo.toml
+  s_a5af1491f2be3e::t_f723b114a98b6a 69
+  s_a5af1491f2be3e::t_6dc9d1551f3c05 32
+  s_a5af1491f2be3e::t_5f719130f11a3b 46
+src/backup_crypto.rs
+  s_a5af1491f2be3e::t_6956f1b45578fa 33,36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "be11c26bdbcb4ce2a536838c38725826adab8150",
+  "prompts": {},
+  "sessions": {
+    "s_a5af1491f2be3e": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "145e7e71-d4db-44dd-9c13-52a78cd97ae8",
+        "model": "default"
+      },
+      "human_author": "Pavel Kuzmin <Virus191288@gmail.com>"
+    }
+  }
+}
