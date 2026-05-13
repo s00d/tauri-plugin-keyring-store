@@ -1,6 +1,6 @@
 [package]
 name = "tauri-plugin-keyring-store"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["s00d"]
 description = "Stronghold-inspired secrets and crypto helpers backed by the OS credential store (keyring-core)."
 edition = "2021"
@@ -15,6 +15,9 @@ links = "tauri-plugin-keyring-store"
 
 [package.metadata.docs.rs]
 all-features = true
+# docs.rs defaults to Linux and pulls GTK/WebKit → old `winnow`/`toml` with broken `doc_auto_cfg` under nightly docsrs.
+# Building docs for macOS avoids that graph while matching real desktop Tauri targets.
+default-target = "x86_64-apple-darwin"
 rustc-args = ["--cfg", "docsrs"]
 rustdoc-args = ["--cfg", "docsrs"]
 
