@@ -1,0 +1,28 @@
+package.json
+  s_a5af1491f2be3e::t_bf4e6267a99826 3
+CHANGELOG.md
+  s_a5af1491f2be3e::t_3ecebb7e37b7b8 8-11,13
+  s_a5af1491f2be3e::t_468a48a63900de 12
+  s_a5af1491f2be3e::t_07270ca6795d23 34
+Cargo.toml
+  s_a5af1491f2be3e::t_29980c16229164 3
+  s_a5af1491f2be3e::t_8874282db4d929 57-58
+src/backend.rs
+  s_a5af1491f2be3e::t_a88bddf9caf3c4 42,50-53
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "2ab40e5f854955ae0723bf114d7e918078da63b2",
+  "prompts": {},
+  "sessions": {
+    "s_a5af1491f2be3e": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "145e7e71-d4db-44dd-9c13-52a78cd97ae8",
+        "model": "default"
+      },
+      "human_author": "Pavel Kuzmin <Virus191288@gmail.com>"
+    }
+  }
+}
