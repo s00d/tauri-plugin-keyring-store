@@ -1,5 +1,5 @@
 [package]
-name = "tauri-plugin-keyring"
+name = "tauri-plugin-keyring-store"
 version = "0.1.0"
 authors = ["s00d"]
 description = "Stronghold-inspired secrets and crypto helpers backed by the OS credential store (keyring-core)."
@@ -7,11 +7,11 @@ edition = "2021"
 rust-version = "1.77.2"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/s00d/tauri-plugin-keyring"
-documentation = "https://docs.rs/tauri-plugin-keyring"
+documentation = "https://docs.rs/tauri-plugin-keyring-store"
 keywords = ["tauri", "tauri-plugin", "keyring", "credential", "secrets"]
 categories = ["authentication", "api-bindings"]
 exclude = ["/examples", "/dist-js", "/guest-js", "/node_modules"]
-links = "tauri-plugin-keyring"
+links = "tauri-plugin-keyring-store"
 
 [package.metadata.docs.rs]
 all-features = true

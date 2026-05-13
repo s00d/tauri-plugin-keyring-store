@@ -3,8 +3,8 @@
  * then work through {@link requireStore}. If snapshot or client changes, `unload` and reopen.
  */
 
-import type { KeyringClient } from "tauri-plugin-keyring-api";
-import { KeyringSession, type KeyringStoreView } from "tauri-plugin-keyring-api";
+import type { KeyringClient } from "tauri-plugin-keyring-store-api";
+import { KeyringSession, type KeyringStoreView } from "tauri-plugin-keyring-store-api";
 
 /** Plugin README values for the built-in JS demo button. */
 export const EXAMPLE_SNAPSHOT_ID = "demo-snapshot";

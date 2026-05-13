@@ -11,7 +11,7 @@ importers:
       '@tauri-apps/api':
         specifier: ^2.0.0
         version: 2.11.0
-      tauri-plugin-keyring-api:
+      tauri-plugin-keyring-store-api:
         specifier: file:../../
         version: file:../..
       vue:
@@ -562,7 +562,7 @@ packages:
     resolution: {integrity: sha512-UXWMKhLOwVKb728IUtQPXxfYU+usdybtUrK/8uGE8CQMvrhOpwvzDBwj0QhSL7MQc7vIsISBG8VQ8+IDQxpfQA==}
     engines: {node: '>=0.10.0'}
 
-  tauri-plugin-keyring-api@file:../..:
+  tauri-plugin-keyring-store-api@file:../..:
     resolution: {directory: ../.., type: directory}
 
   tinyglobby@0.2.16:
@@ -1062,7 +1062,7 @@ snapshots:
 
   source-map-js@1.2.1: {}
 
-  tauri-plugin-keyring-api@file:../..:
+  tauri-plugin-keyring-store-api@file:../..:
     dependencies:
       '@tauri-apps/api': 2.11.0
 

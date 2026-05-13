@@ -1,7 +1,7 @@
 /**
- * JavaScript API for `tauri-plugin-keyring` — Stronghold-shaped session/store/vault/procedure calls backed by the OS keyring.
+ * JavaScript API for `tauri-plugin-keyring-store` — Stronghold-shaped session/store/vault/procedure calls backed by the OS keyring.
  *
- * @module tauri-plugin-keyring-api
+ * @module tauri-plugin-keyring-store-api
  */
 
 import { invoke } from '@tauri-apps/api/core'
@@ -68,7 +68,7 @@ class ProcedureExecutor {
     outputLocation: Location,
     sizeBytes?: number
   ): Promise<Uint8Array> {
-    return await invoke<number[]>('plugin:keyring|execute_procedure', {
+    return await invoke<number[]>('plugin:keyring-store|execute_procedure', {
       ...this.procedureArgs,
       procedure: {
         type: 'SLIP10Generate',
@@ -86,7 +86,7 @@ class ProcedureExecutor {
     sourceLocation: Location,
     outputLocation: Location
   ): Promise<Uint8Array> {
-    return await invoke<number[]>('plugin:keyring|execute_procedure', {
+    return await invoke<number[]>('plugin:keyring-store|execute_procedure', {
       ...this.procedureArgs,
       procedure: {
         type: 'SLIP10Derive',
@@ -107,7 +107,7 @@ class ProcedureExecutor {
     outputLocation: Location,
     passphrase?: string
   ): Promise<Uint8Array> {
-    return await invoke<number[]>('plugin:keyring|execute_procedure', {
+    return await invoke<number[]>('plugin:keyring-store|execute_procedure', {
       ...this.procedureArgs,
       procedure: {
         type: 'BIP39Recover',
@@ -124,7 +124,7 @@ class ProcedureExecutor {
     outputLocation: Location,
     passphrase?: string
   ): Promise<Uint8Array> {
-    return await invoke<number[]>('plugin:keyring|execute_procedure', {
+    return await invoke<number[]>('plugin:keyring-store|execute_procedure', {
       ...this.procedureArgs,
       procedure: {
         type: 'BIP39Generate',
@@ -137,7 +137,7 @@ class ProcedureExecutor {
   }
 
   async getEd25519PublicKey(privateKeyLocation: Location): Promise<Uint8Array> {
-    return await invoke<number[]>('plugin:keyring|execute_procedure', {
+    return await invoke<number[]>('plugin:keyring-store|execute_procedure', {
       ...this.procedureArgs,
       procedure: {
         type: 'PublicKey',
@@ -153,7 +153,7 @@ class ProcedureExecutor {
     privateKeyLocation: Location,
     msg: string
   ): Promise<Uint8Array> {
-    return await invoke<number[]>('plugin:keyring|execute_procedure', {
+    return await invoke<number[]>('plugin:keyring-store|execute_procedure', {
       ...this.procedureArgs,
       procedure: {
         type: 'Ed25519Sign',
@@ -196,7 +196,7 @@ export class KeyringStoreView {
   }
 
   async get(key: StoreKey): Promise<Uint8Array | null> {
-    return await invoke<number[] | null>('plugin:keyring|get_store_record', {
+    return await invoke<number[] | null>('plugin:keyring-store|get_store_record', {
       snapshotPath: this.path,
       client: this.client,
       key
@@ -208,7 +208,7 @@ export class KeyringStoreView {
     value: number[],
     lifetime?: Duration
   ): Promise<void> {
-    await invoke('plugin:keyring|save_store_record', {
+    await invoke('plugin:keyring-store|save_store_record', {
       snapshotPath: this.path,
       client: this.client,
       key,
@@ -219,7 +219,7 @@ export class KeyringStoreView {
 
   async remove(key: StoreKey): Promise<Uint8Array | null> {
     return await invoke<number[] | null>(
-      'plugin:keyring|remove_store_record',
+      'plugin:keyring-store|remove_store_record',
       {
         snapshotPath: this.path,
         client: this.client,
@@ -247,7 +247,7 @@ export class KeyringVault extends ProcedureExecutor {
   }
 
   async insert(recordPath: RecordPath, secret: number[]): Promise<void> {
-    await invoke('plugin:keyring|save_secret', {
+    await invoke('plugin:keyring-store|save_secret', {
       snapshotPath: this.path,
       client: this.client,
       vault: this.name,
@@ -262,7 +262,7 @@ export class KeyringVault extends ProcedureExecutor {
         ? (location.payload as { record: RecordPath }).record
         : String((location.payload as { counter: number }).counter)
 
-    await invoke('plugin:keyring|remove_secret', {
+    await invoke('plugin:keyring-store|remove_secret', {
       snapshotPath: this.path,
       client: this.client,
       vault: this.name,
@@ -283,7 +283,7 @@ export class KeyringSession {
   }
 
   static async load(path: string, password: string): Promise<KeyringSession> {
-    await invoke('plugin:keyring|initialize', {
+    await invoke('plugin:keyring-store|initialize', {
       snapshotPath: path,
       password
     })
@@ -291,13 +291,13 @@ export class KeyringSession {
   }
 
   async unload(): Promise<void> {
-    await invoke('plugin:keyring|destroy', {
+    await invoke('plugin:keyring-store|destroy', {
       snapshotPath: this.path
     })
   }
 
   async loadClient(client: ClientPath): Promise<KeyringClient> {
-    await invoke('plugin:keyring|load_client', {
+    await invoke('plugin:keyring-store|load_client', {
       snapshotPath: this.path,
       client
     })
@@ -305,7 +305,7 @@ export class KeyringSession {
   }
 
   async createClient(client: ClientPath): Promise<KeyringClient> {
-    await invoke('plugin:keyring|create_client', {
+    await invoke('plugin:keyring-store|create_client', {
       snapshotPath: this.path,
       client
     })
@@ -314,7 +314,7 @@ export class KeyringSession {
 
   /** No-op on OS keyring (included for Stronghold parity). */
   async save(): Promise<void> {
-    await invoke('plugin:keyring|save', {
+    await invoke('plugin:keyring-store|save', {
       snapshotPath: this.path
     })
   }
@@ -322,7 +322,7 @@ export class KeyringSession {
 
 /** Ping helper for diagnostics. */
 export async function ping(value?: string): Promise<string | null> {
-  return await invoke<{ value?: string }>('plugin:keyring|ping', {
+  return await invoke<{ value?: string }>('plugin:keyring-store|ping', {
     payload: {
       value
     }
@@ -359,24 +359,24 @@ export interface PasswordBackupEncryptedDto {
 export async function getPasswords(
   accounts: string[]
 ): Promise<(string | null)[]> {
-  return await invoke<(string | null)[]>('plugin:keyring|get_passwords', {
+  return await invoke<(string | null)[]>('plugin:keyring-store|get_passwords', {
     accounts
   })
 }
 
 /** Write many UTF-8 secrets. */
 export async function setPasswords(entries: PasswordEntryDto[]): Promise<void> {
-  await invoke('plugin:keyring|set_passwords', { entries })
+  await invoke('plugin:keyring-store|set_passwords', { entries })
 }
 
 /** Delete many keyring entries by account string. */
 export async function deletePasswords(accounts: string[]): Promise<void> {
-  await invoke('plugin:keyring|delete_passwords', { accounts })
+  await invoke('plugin:keyring-store|delete_passwords', { accounts })
 }
 
 /** True if the account exists with non-empty secret (matches Rust `exists_nonempty`). */
 export async function passwordExists(account: string): Promise<boolean> {
-  return await invoke<boolean>('plugin:keyring|password_exists', { account })
+  return await invoke<boolean>('plugin:keyring-store|password_exists', { account })
 }
 
 /** Plaintext backup over IPC — **security**: secrets are exposed to the webview process. */
@@ -384,7 +384,7 @@ export async function exportPasswordsPlain(
   accounts: string[]
 ): Promise<PasswordBackupPlainDto> {
   return await invoke<PasswordBackupPlainDto>(
-    'plugin:keyring|export_passwords_plain',
+    'plugin:keyring-store|export_passwords_plain',
     { accounts }
   )
 }
@@ -392,7 +392,7 @@ export async function exportPasswordsPlain(
 export async function importPasswordsPlain(
   backup: PasswordBackupPlainDto
 ): Promise<void> {
-  await invoke('plugin:keyring|import_passwords_plain', { backup })
+  await invoke('plugin:keyring-store|import_passwords_plain', { backup })
 }
 
 /** Encrypted backup (Argon2id + ChaCha20-Poly1305); always available (independent of Rust `crypto` / iota-crypto). */
@@ -401,7 +401,7 @@ export async function exportPasswordsEncrypted(
   passphrase: string
 ): Promise<PasswordBackupEncryptedDto> {
   return await invoke<PasswordBackupEncryptedDto>(
-    'plugin:keyring|export_passwords_encrypted',
+    'plugin:keyring-store|export_passwords_encrypted',
     { accounts, passphrase }
   )
 }
@@ -410,7 +410,7 @@ export async function importPasswordsEncrypted(
   backup: PasswordBackupEncryptedDto,
   passphrase: string
 ): Promise<void> {
-  await invoke('plugin:keyring|import_passwords_encrypted', {
+  await invoke('plugin:keyring-store|import_passwords_encrypted', {
     backup,
     passphrase
   })

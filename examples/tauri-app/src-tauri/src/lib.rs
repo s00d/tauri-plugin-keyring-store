@@ -1,7 +1,7 @@
-//! Example app: demonstrates **Rust-first** keyring access via [`tauri_plugin_keyring::KeyringExt`]
+//! Example app: demonstrates **Rust-first** keyring access via [`tauri_plugin_keyring_store::KeyringExt`]
 //! plus optional guest API flows from the webview.
 
-use tauri_plugin_keyring::{BytesDto, KeyringExt};
+use tauri_plugin_keyring_store::{BytesDto, KeyringExt};
 
 fn normalize_account(account: String) -> Result<String, String> {
     let account = account.trim().to_owned();
@@ -93,7 +93,7 @@ pub fn run() {
             demo_read_secret,
             demo_session_store,
         ])
-        .plugin(tauri_plugin_keyring::init())
+        .plugin(tauri_plugin_keyring_store::init())
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

@@ -5,8 +5,8 @@
 //! ## Example
 //!
 //! ```rust,no_run
-//! use tauri_plugin_keyring::KeyringStore;
-//! use tauri_plugin_keyring::BytesDto;
+//! use tauri_plugin_keyring_store::KeyringStore;
+//! use tauri_plugin_keyring_store::BytesDto;
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! let store = KeyringStore::new("com.example.app");

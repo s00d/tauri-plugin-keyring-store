@@ -1,15 +1,15 @@
 <p align="center">
-  <img src="assets/docs-logo.svg" width="128" height="128" alt="tauri-plugin-keyring logo" />
+  <img src="assets/docs-logo.svg" width="128" height="128" alt="tauri-plugin-keyring-store logo" />
 </p>
 
-[![npm version](https://img.shields.io/npm/v/tauri-plugin-keyring-api/latest?style=for-the-badge)](https://www.npmjs.com/package/tauri-plugin-keyring-api)
-[![Crates.io](https://img.shields.io/crates/v/tauri-plugin-keyring?style=for-the-badge)](https://crates.io/crates/tauri-plugin-keyring)
-[![Documentation](https://img.shields.io/badge/docs-docs.rs-blue?style=for-the-badge)](https://docs.rs/tauri-plugin-keyring/)
+[![npm version](https://img.shields.io/npm/v/tauri-plugin-keyring-store-api/latest?style=for-the-badge)](https://www.npmjs.com/package/tauri-plugin-keyring-store-api)
+[![Crates.io](https://img.shields.io/crates/v/tauri-plugin-keyring-store?style=for-the-badge)](https://crates.io/crates/tauri-plugin-keyring-store)
+[![Documentation](https://img.shields.io/badge/docs-docs.rs-blue?style=for-the-badge)](https://docs.rs/tauri-plugin-keyring-store/)
 [![GitHub issues](https://img.shields.io/github/issues/s00d/tauri-plugin-keyring?style=for-the-badge)](https://github.com/s00d/tauri-plugin-keyring/issues)
 [![GitHub stars](https://img.shields.io/github/stars/s00d/tauri-plugin-keyring?style=for-the-badge)](https://github.com/s00d/tauri-plugin-keyring/stargazers)
 [![Donate](https://img.shields.io/badge/Donate-Donationalerts-ff4081?style=for-the-badge)](https://www.donationalerts.com/r/s00d88)
 
-# Tauri Plugin Keyring
+# Tauri Plugin Keyring Store
 
 Store secrets and wallet-style procedures using the **OS credential store** (macOS Keychain, Windows Credential Manager, Linux Secret Service, Android Keystore, iOS Data Protection). The guest API mirrors [`tauri-plugin-stronghold`](https://github.com/tauri-apps/plugins-workspace/tree/v2/plugins/stronghold) sessions, clients, store, vault, and crypto procedures — but **there is no encrypted snapshot file**: everything maps to hashed keyring entries under your app **service** name (defaults to the Tauri bundle identifier).
 
@@ -60,27 +60,27 @@ Linux desktops need a Secret Service (e.g. GNOME Keyring / KWallet). Headless CI
 ### Automatic (recommended)
 
 ```bash
-pnpm exec tauri add keyring
-# or: npm run tauri add keyring / cargo tauri add keyring
+cargo add tauri-plugin-keyring-store
+# or from crate published on crates.io after release
 ```
 
 ### Manual — Rust
 
 ```bash
 cd src-tauri
-cargo add tauri-plugin-keyring
+cargo add tauri-plugin-keyring-store
 ```
 
 Disable crypto (storage IPC only):
 
 ```toml
-tauri-plugin-keyring = { version = "0.1", default-features = false }
+tauri-plugin-keyring-store = { version = "0.1", default-features = false }
 ```
 
 ### Manual — JavaScript
 
 ```bash
-pnpm add tauri-plugin-keyring-api
+pnpm add tauri-plugin-keyring-store-api
 ```
 
 ---
@@ -92,7 +92,7 @@ pnpm add tauri-plugin-keyring-api
 ```rust
 fn main() {
   tauri::Builder::default()
-    .plugin(tauri_plugin_keyring::init())
+    .plugin(tauri_plugin_keyring_store::init())
     .run(tauri::generate_context!())
     .expect("error while running tauri application");
 }
@@ -101,7 +101,7 @@ fn main() {
 Custom **service** name (defaults to `identifier` in `tauri.conf.json`):
 
 ```rust
-tauri_plugin_keyring::Builder::new()
+tauri_plugin_keyring_store::Builder::new()
   .service("com.mycompany.myapp.credentials")
   .build()
 ```
@@ -110,7 +110,7 @@ tauri_plugin_keyring::Builder::new()
 
 ```rust
 use tauri::Manager;
-use tauri_plugin_keyring::KeyringExt;
+use tauri_plugin_keyring_store::KeyringExt;
 
 #[tauri::command]
 fn save_api_token(app: tauri::AppHandle, token: String) -> Result<(), String> {
@@ -125,7 +125,7 @@ Sessions opened from the frontend (`initialize`) are tracked separately; low-lev
 ### Frontend (Stronghold-like flow)
 
 ```typescript
-import { KeyringSession, KeyringClient } from 'tauri-plugin-keyring-api'
+import { KeyringSession, KeyringClient } from 'tauri-plugin-keyring-store-api'
 
 const session = await KeyringSession.load('/logical/path', 'ignored-password')
 const client = await session.createClient('main')
@@ -150,7 +150,7 @@ Raw **account** strings are the OS keyring entry names under your app **service*
 | `export_passwords_plain` / `import_passwords_plain` | JSON backup blob over IPC. |
 | `export_passwords_encrypted` / `import_passwords_encrypted` | Argon2id + ChaCha20-Poly1305 envelope (always compiled; independent of the `crypto` feature). |
 
-**Naming (application convention):** use `prefix.name` with a single dot — helpers [`join_prefix`](https://docs.rs/tauri-plugin-keyring/latest/tauri_plugin_keyring/fn.join_prefix.html) / [`split_prefixed`](https://docs.rs/tauri-plugin-keyring/latest/tauri_plugin_keyring/fn.split_prefixed.html) in Rust, and `joinKeyPrefix` / `splitKeyPrefix` in guest-js. The OS keyring still does **not** support listing by prefix; keep your own index of logical keys if needed.
+**Naming (application convention):** use `prefix.name` with a single dot — helpers [`join_prefix`](https://docs.rs/tauri-plugin-keyring-store/latest/tauri_plugin_keyring_store/fn.join_prefix.html) / [`split_prefixed`](https://docs.rs/tauri-plugin-keyring-store/latest/tauri_plugin_keyring_store/fn.split_prefixed.html) in Rust, and `joinKeyPrefix` / `splitKeyPrefix` in guest-js. The OS keyring still does **not** support listing by prefix; keep your own index of logical keys if needed.
 
 **Security — plaintext backup:** `export_passwords_plain` / `import_passwords_plain` move secrets **in the clear** across IPC to the webview. Use only in trusted UI flows, or prefer `export_passwords_encrypted` / disk encryption.
 
@@ -168,7 +168,7 @@ Guest-js exports: `getPasswords`, `setPasswords`, `deletePasswords`, `passwordEx
 
 ## Permissions
 
-Use `keyring:default` or granular `keyring:allow-*` (see [`permissions/default.toml`](permissions/default.toml)). Commands: `plugin:keyring|<command>`.
+Use `keyring-store:default` or granular `keyring-store:allow-*` (see [`permissions/default.toml`](permissions/default.toml)). Commands: `plugin:keyring-store|<command>`.
 
 ---
 

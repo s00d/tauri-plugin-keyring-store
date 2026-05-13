@@ -1,7 +1,7 @@
 //! Serde round-trips for IPC DTOs (no keyring).
 
 use serde_json::json;
-use tauri_plugin_keyring::{
+use tauri_plugin_keyring_store::{
     BytesDto, DurationDto, KeyType, LocationDto, PasswordBackupEncryptedDto,
     PasswordBackupEntryDto, PasswordBackupPlainDto, PasswordEntryDto, PingRequest, ProcedureDto,
     Slip10DeriveInputDto,

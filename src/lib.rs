@@ -7,7 +7,7 @@
 //!
 //! ```rust,no_run
 //! use tauri::Manager;
-//! use tauri_plugin_keyring::KeyringExt;
+//! use tauri_plugin_keyring_store::KeyringExt;
 //!
 //! fn example<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
 //!   let _svc = app.keyring().store.service();
@@ -67,7 +67,7 @@ impl Builder {
     /// Build the plugin for registration via [`tauri::Builder::plugin`].
     pub fn build<R: Runtime>(self) -> TauriPlugin<R> {
         let service_hint = self.service;
-        PluginBuilder::new("keyring")
+        PluginBuilder::new("keyring-store")
             .setup(move |app, _api| {
                 let service = service_hint.unwrap_or_else(|| app.config().identifier.clone());
                 app.manage(KeyringPlugin::new(service));

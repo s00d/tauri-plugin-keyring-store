@@ -1,6 +1,6 @@
 //! Deterministic account key helpers (no OS keyring access).
 
-use tauri_plugin_keyring::{BytesDto, KeyringStore};
+use tauri_plugin_keyring_store::{BytesDto, KeyringStore};
 
 #[test]
 fn store_and_vault_keys_stable_for_same_inputs() {

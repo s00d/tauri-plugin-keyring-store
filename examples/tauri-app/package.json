@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0",
-    "tauri-plugin-keyring-api": "file:../../",
+    "tauri-plugin-keyring-store-api": "file:../../",
     "vue": "^3.5.0"
   },
   "devDependencies": {

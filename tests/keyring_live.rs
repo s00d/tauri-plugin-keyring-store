@@ -4,7 +4,7 @@
 //! cargo test keyring_roundtrip_live -- --ignored --nocapture
 //! ```
 
-use tauri_plugin_keyring::KeyringStore;
+use tauri_plugin_keyring_store::KeyringStore;
 
 #[test]
 #[ignore = "requires desktop session keyring (Secret Service / Keychain / Credential Manager)"]

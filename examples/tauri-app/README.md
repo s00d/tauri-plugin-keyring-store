@@ -1,4 +1,4 @@
-# Example: tauri-plugin-keyring
+# Example: tauri-plugin-keyring-store
 
 Demonstrates:
 
@@ -19,4 +19,4 @@ pnpm tauri dev
 
 ## Permissions
 
-[`src-tauri/capabilities/default.json`](src-tauri/capabilities/default.json) includes `keyring:default` for plugin IPC. Application commands are registered on the app — adjust ACL if your setup restricts `invoke` for local commands.
+[`src-tauri/capabilities/default.json`](src-tauri/capabilities/default.json) includes `keyring-store:default` for plugin IPC. Application commands are registered on the app — adjust ACL if your setup restricts `invoke` for local commands.

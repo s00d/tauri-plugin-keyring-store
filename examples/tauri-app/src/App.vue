@@ -93,7 +93,7 @@ const onSessionClose = () =>
 
 <template>
   <main class="container">
-    <h1>tauri-plugin-keyring example</h1>
+    <h1>tauri-plugin-keyring-store example</h1>
 
     <section class="panel">
       <h2>Your data (Rust → OS keyring)</h2>

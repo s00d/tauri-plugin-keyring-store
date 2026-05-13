@@ -6,7 +6,7 @@ vi.mock('@tauri-apps/api/core', () => ({
   invoke: (...args: unknown[]) => invokeMock(...args),
 }))
 
-describe('tauri-plugin-keyring-api', () => {
+describe('tauri-plugin-keyring-store-api', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -15,7 +15,7 @@ describe('tauri-plugin-keyring-api', () => {
     invokeMock.mockResolvedValue({ value: 'ok' })
     const api = await import('../../guest-js/index.ts')
     const out = await api.ping('test')
-    expect(invokeMock).toHaveBeenCalledWith('plugin:keyring|ping', {
+    expect(invokeMock).toHaveBeenCalledWith('plugin:keyring-store|ping', {
       payload: { value: 'test' },
     })
     expect(out).toBe('ok')
@@ -25,7 +25,7 @@ describe('tauri-plugin-keyring-api', () => {
     invokeMock.mockResolvedValue(undefined)
     const api = await import('../../guest-js/index.ts')
     await api.KeyringSession.load('/snap/x', 'pwd')
-    expect(invokeMock).toHaveBeenCalledWith('plugin:keyring|initialize', {
+    expect(invokeMock).toHaveBeenCalledWith('plugin:keyring-store|initialize', {
       snapshotPath: '/snap/x',
       password: 'pwd',
     })
@@ -38,8 +38,8 @@ describe('tauri-plugin-keyring-api', () => {
     const client = await session.createClient('c1')
     await client.getStore().insert('k1', [1, 2, 3])
     const calls = invokeMock.mock.calls.map((c) => c[0])
-    expect(calls).toContain('plugin:keyring|save_store_record')
-    const saveCall = invokeMock.mock.calls.find((c) => c[0] === 'plugin:keyring|save_store_record')
+    expect(calls).toContain('plugin:keyring-store|save_store_record')
+    const saveCall = invokeMock.mock.calls.find((c) => c[0] === 'plugin:keyring-store|save_store_record')
     expect(saveCall?.[1]).toMatchObject({
       snapshotPath: '/p',
       key: 'k1',
@@ -56,7 +56,7 @@ describe('tauri-plugin-keyring-api', () => {
     const vault = client.getVault('vault')
     const out = await vault.generateSLIP10Seed(loc, 32)
     expect(invokeMock).toHaveBeenCalledWith(
-      'plugin:keyring|execute_procedure',
+      'plugin:keyring-store|execute_procedure',
       expect.objectContaining({
         procedure: {
           type: 'SLIP10Generate',

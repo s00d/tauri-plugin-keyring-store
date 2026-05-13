@@ -1,9 +1,9 @@
 /**
- * App layer on top of `tauri-plugin-keyring-api`, local `invoke` commands, and {@link ./ipc-session}.
+ * App layer on top of `tauri-plugin-keyring-store-api`, local `invoke` commands, and {@link ./ipc-session}.
  */
 
 import { invoke } from "@tauri-apps/api/core";
-import { ping } from "tauri-plugin-keyring-api";
+import { ping } from "tauri-plugin-keyring-store-api";
 
 import {
   closeSession,

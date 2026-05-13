@@ -37,7 +37,7 @@ Default permissions for the plugin
 <tr>
 <td>
 
-`keyring:allow-create-client`
+`keyring-store:allow-create-client`
 
 </td>
 <td>
@@ -50,7 +50,7 @@ Enables the create_client command without any pre-configured scope.
 <tr>
 <td>
 
-`keyring:deny-create-client`
+`keyring-store:deny-create-client`
 
 </td>
 <td>
@@ -63,7 +63,7 @@ Denies the create_client command without any pre-configured scope.
 <tr>
 <td>
 
-`keyring:allow-delete-passwords`
+`keyring-store:allow-delete-passwords`
 
 </td>
 <td>
@@ -76,7 +76,7 @@ Enables the delete_passwords command without any pre-configured scope.
 <tr>
 <td>
 
-`keyring:deny-delete-passwords`
+`keyring-store:deny-delete-passwords`
 
 </td>
 <td>
@@ -89,7 +89,7 @@ Denies the delete_passwords command without any pre-configured scope.
 <tr>
 <td>
 
-`keyring:allow-destroy`
+`keyring-store:allow-destroy`
 
 </td>
 <td>
@@ -102,7 +102,7 @@ Enables the destroy command without any pre-configured scope.
 <tr>
 <td>
 
-`keyring:deny-destroy`
+`keyring-store:deny-destroy`
 
 </td>
 <td>
@@ -115,7 +115,7 @@ Denies the destroy command without any pre-configured scope.
 <tr>
 <td>
 
-`keyring:allow-execute-procedure`
+`keyring-store:allow-execute-procedure`
 
 </td>
 <td>
@@ -128,7 +128,7 @@ Enables the execute_procedure command without any pre-configured scope.
 <tr>
 <td>
 
-`keyring:deny-execute-procedure`
+`keyring-store:deny-execute-procedure`
 
 </td>
 <td>
@@ -141,7 +141,7 @@ Denies the execute_procedure command without any pre-configured scope.
 <tr>
 <td>
 
-`keyring:allow-export-passwords-encrypted`
+`keyring-store:allow-export-passwords-encrypted`
 
 </td>
 <td>
@@ -154,7 +154,7 @@ Enables the export_passwords_encrypted command without any pre-configured scope.
 <tr>
 <td>
 
-`keyring:deny-export-passwords-encrypted`
+`keyring-store:deny-export-passwords-encrypted`
 
 </td>
 <td>
@@ -167,7 +167,7 @@ Denies the export_passwords_encrypted command without any pre-configured scope.
 <tr>
 <td>
 
-`keyring:allow-export-passwords-plain`
+`keyring-store:allow-export-passwords-plain`
 
 </td>
 <td>
@@ -180,7 +180,7 @@ Enables the export_passwords_plain command without any pre-configured scope.
 <tr>
 <td>
 
-`keyring:deny-export-passwords-plain`
+`keyring-store:deny-export-passwords-plain`
 
 </td>
 <td>
@@ -193,7 +193,7 @@ Denies the export_passwords_plain command without any pre-configured scope.
 <tr>
 <td>
 
-`keyring:allow-get-passwords`
+`keyring-store:allow-get-passwords`
 
 </td>
 <td>
@@ -206,7 +206,7 @@ Enables the get_passwords command without any pre-configured scope.
 <tr>
 <td>
 
-`keyring:deny-get-passwords`
+`keyring-store:deny-get-passwords`
 
 </td>
 <td>
@@ -219,7 +219,7 @@ Denies the get_passwords command without any pre-configured scope.
 <tr>
 <td>
 
-`keyring:allow-get-store-record`
+`keyring-store:allow-get-store-record`
 
 </td>
 <td>
@@ -232,7 +232,7 @@ Enables the get_store_record command without any pre-configured scope.
 <tr>
 <td>
 
-`keyring:deny-get-store-record`
+`keyring-store:deny-get-store-record`
 
 </td>
 <td>
@@ -245,7 +245,7 @@ Denies the get_store_record command without any pre-configured scope.
 <tr>
 <td>
 
-`keyring:allow-import-passwords-encrypted`
+`keyring-store:allow-import-passwords-encrypted`
 
 </td>
 <td>
@@ -258,7 +258,7 @@ Enables the import_passwords_encrypted command without any pre-configured scope.
 <tr>
 <td>
 
-`keyring:deny-import-passwords-encrypted`
+`keyring-store:deny-import-passwords-encrypted`
 
 </td>
 <td>
@@ -271,7 +271,7 @@ Denies the import_passwords_encrypted command without any pre-configured scope.
 <tr>
 <td>
 
-`keyring:allow-import-passwords-plain`
+`keyring-store:allow-import-passwords-plain`
 
 </td>
 <td>
@@ -284,7 +284,7 @@ Enables the import_passwords_plain command without any pre-configured scope.
 <tr>
 <td>
 
-`keyring:deny-import-passwords-plain`
+`keyring-store:deny-import-passwords-plain`
 
 </td>
 <td>
@@ -297,7 +297,7 @@ Denies the import_passwords_plain command without any pre-configured scope.
 <tr>
 <td>
 
-`keyring:allow-initialize`
+`keyring-store:allow-initialize`
 
 </td>
 <td>
@@ -310,7 +310,7 @@ Enables the initialize command without any pre-configured scope.
 <tr>
 <td>
 
-`keyring:deny-initialize`
+`keyring-store:deny-initialize`
 
 </td>
 <td>
@@ -323,7 +323,7 @@ Denies the initialize command without any pre-configured scope.
 <tr>
 <td>
 
-`keyring:allow-load-client`
+`keyring-store:allow-load-client`
 
 </td>
 <td>
@@ -336,7 +336,7 @@ Enables the load_client command without any pre-configured scope.
 <tr>
 <td>
 
-`keyring:deny-load-client`
+`keyring-store:deny-load-client`
 
 </td>
 <td>
@@ -349,7 +349,7 @@ Denies the load_client command without any pre-configured scope.
 <tr>
 <td>
 
-`keyring:allow-password-exists`
+`keyring-store:allow-password-exists`
 
 </td>
 <td>
@@ -362,7 +362,7 @@ Enables the password_exists command without any pre-configured scope.
 <tr>
 <td>
 
-`keyring:deny-password-exists`
+`keyring-store:deny-password-exists`
 
 </td>
 <td>
@@ -375,7 +375,7 @@ Denies the password_exists command without any pre-configured scope.
 <tr>
 <td>
 
-`keyring:allow-ping`
+`keyring-store:allow-ping`
 
 </td>
 <td>
@@ -388,7 +388,7 @@ Enables the ping command without any pre-configured scope.
 <tr>
 <td>
 
-`keyring:deny-ping`
+`keyring-store:deny-ping`
 
 </td>
 <td>
@@ -401,7 +401,7 @@ Denies the ping command without any pre-configured scope.
 <tr>
 <td>
 
-`keyring:allow-remove-secret`
+`keyring-store:allow-remove-secret`
 
 </td>
 <td>
@@ -414,7 +414,7 @@ Enables the remove_secret command without any pre-configured scope.
 <tr>
 <td>
 
-`keyring:deny-remove-secret`
+`keyring-store:deny-remove-secret`
 
 </td>
 <td>
@@ -427,7 +427,7 @@ Denies the remove_secret command without any pre-configured scope.
 <tr>
 <td>
 
-`keyring:allow-remove-store-record`
+`keyring-store:allow-remove-store-record`
 
 </td>
 <td>
@@ -440,7 +440,7 @@ Enables the remove_store_record command without any pre-configured scope.
 <tr>
 <td>
 
-`keyring:deny-remove-store-record`
+`keyring-store:deny-remove-store-record`
 
 </td>
 <td>
@@ -453,7 +453,7 @@ Denies the remove_store_record command without any pre-configured scope.
 <tr>
 <td>
 
-`keyring:allow-save`
+`keyring-store:allow-save`
 
 </td>
 <td>
@@ -466,7 +466,7 @@ Enables the save command without any pre-configured scope.
 <tr>
 <td>
 
-`keyring:deny-save`
+`keyring-store:deny-save`
 
 </td>
 <td>
@@ -479,7 +479,7 @@ Denies the save command without any pre-configured scope.
 <tr>
 <td>
 
-`keyring:allow-save-secret`
+`keyring-store:allow-save-secret`
 
 </td>
 <td>
@@ -492,7 +492,7 @@ Enables the save_secret command without any pre-configured scope.
 <tr>
 <td>
 
-`keyring:deny-save-secret`
+`keyring-store:deny-save-secret`
 
 </td>
 <td>
@@ -505,7 +505,7 @@ Denies the save_secret command without any pre-configured scope.
 <tr>
 <td>
 
-`keyring:allow-save-store-record`
+`keyring-store:allow-save-store-record`
 
 </td>
 <td>
@@ -518,7 +518,7 @@ Enables the save_store_record command without any pre-configured scope.
 <tr>
 <td>
 
-`keyring:deny-save-store-record`
+`keyring-store:deny-save-store-record`
 
 </td>
 <td>
@@ -531,7 +531,7 @@ Denies the save_store_record command without any pre-configured scope.
 <tr>
 <td>
 
-`keyring:allow-set-passwords`
+`keyring-store:allow-set-passwords`
 
 </td>
 <td>
@@ -544,7 +544,7 @@ Enables the set_passwords command without any pre-configured scope.
 <tr>
 <td>
 
-`keyring:deny-set-passwords`
+`keyring-store:deny-set-passwords`
 
 </td>
 <td>

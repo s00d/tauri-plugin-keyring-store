@@ -1,7 +1,7 @@
 {
   "productName": "tauri-app",
   "version": "0.1.0",
-  "identifier": "dev.s00d.tauri-plugin-keyring.example",
+  "identifier": "dev.s00d.tauri-plugin-keyring-store.example",
   "build": {
     "beforeDevCommand": "pnpm dev",
     "beforeBuildCommand": "pnpm build",

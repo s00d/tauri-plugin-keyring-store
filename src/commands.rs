@@ -342,7 +342,7 @@ pub(crate) async fn execute_procedure<R: Runtime>(
     _procedure: ProcedureDto,
 ) -> Result<Vec<u8>> {
     Err(crate::Error::Crypto(
-        "tauri-plugin-keyring was built without the `crypto` feature".into(),
+        "tauri-plugin-keyring-store was built without the `crypto` feature".into(),
     ))
 }
 
