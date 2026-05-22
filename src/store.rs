@@ -18,12 +18,16 @@
 //! ```
 
 use std::collections::HashSet;
+#[cfg(target_os = "ios")]
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use keyring_core::Entry;
 use sha2::{Digest, Sha256};
 
 use crate::backend::{ensure_init, map_keyring_err};
+#[cfg(target_os = "ios")]
+use crate::backend::is_keychain_locked_error;
 use crate::error::{Error, Result};
 use crate::models::BytesDto;
 
@@ -33,6 +37,49 @@ fn digest16(data: &[u8]) -> String {
     let out = h.finalize();
     hex::encode(&out[..8])
 }
+
+/// iOS/macOS Data Protection policy applied when **creating** credentials ([`KeyringStore::set_password`]).
+///
+/// Only honored on iOS (`access-policy` modifier). macOS uses Login Keychain and ignores this for writes.
+#[cfg(any(target_os = "ios", target_os = "macos"))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum WriteAccessibility {
+    /// Accessible after the first device unlock (default on iOS for background-friendly secrets).
+    #[default]
+    AfterFirstUnlock,
+    WhenUnlocked,
+    AfterFirstUnlockThisDeviceOnly,
+    WhenUnlockedThisDeviceOnly,
+    WhenPasscodeSetThisDeviceOnly,
+    RequireUserPresence,
+}
+
+#[cfg(any(target_os = "ios", target_os = "macos"))]
+impl WriteAccessibility {
+    /// Modifier value for [`keyring_core::Entry::new_with_modifiers`] on iOS protected store.
+    pub fn as_access_policy_modifier(self) -> &'static str {
+        match self {
+            Self::AfterFirstUnlock => "after-first-unlock",
+            Self::WhenUnlocked => "when-unlocked",
+            Self::AfterFirstUnlockThisDeviceOnly => "after-first-unlock-this-device-only",
+            Self::WhenUnlockedThisDeviceOnly => "when-unlocked-this-device-only",
+            Self::WhenPasscodeSetThisDeviceOnly => "when-passcode-set-this-device-only",
+            Self::RequireUserPresence => "require-user-presence",
+        }
+    }
+}
+
+/// Result of a lightweight keychain availability probe ([`KeyringStore::availability`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum KeyringAvailability {
+    /// Credentials can be read (device unlocked or policy allows access).
+    Available,
+    /// Protected data / keychain is not readable (e.g. device locked on iOS).
+    Locked,
+}
+
+#[cfg(target_os = "ios")]
+const AVAILABILITY_PROBE_ACCOUNT: &str = "__tauri_keyring_store_availability_probe__";
 
 /// Managed snapshot sessions (Stronghold-compatible “initialized paths”).
 #[derive(Default, Clone)]
@@ -62,6 +109,8 @@ impl SessionRegistry {
 #[derive(Debug, Clone)]
 pub struct KeyringStore {
     service: String,
+    #[cfg(target_os = "ios")]
+    write_accessibility: WriteAccessibility,
 }
 
 impl KeyringStore {
@@ -69,7 +118,16 @@ impl KeyringStore {
     pub fn new(service: impl Into<String>) -> Self {
         Self {
             service: service.into(),
+            #[cfg(target_os = "ios")]
+            write_accessibility: WriteAccessibility::default(),
         }
+    }
+
+    /// Overrides the iOS Data Protection policy used for new writes ([`Self::set_password`] / [`Self::set_bytes`]).
+    #[cfg(target_os = "ios")]
+    pub fn with_write_accessibility(mut self, policy: WriteAccessibility) -> Self {
+        self.write_accessibility = policy;
+        self
     }
 
     /// Keyring **service** / namespace string passed to the native backend.
@@ -82,9 +140,54 @@ impl KeyringStore {
         Entry::new(&self.service, account).map_err(|e| Error::Keyring(e.to_string()))
     }
 
+    fn entry_for_write(&self, account: &str) -> Result<Entry> {
+        #[cfg(target_os = "ios")]
+        {
+            ensure_init().map_err(Error::Init)?;
+            let policy = self.write_accessibility.as_access_policy_modifier();
+            let modifiers = HashMap::from([("access-policy", policy)]);
+            Entry::new_with_modifiers(&self.service, account, &modifiers)
+                .map_err(|e| Error::Keyring(e.to_string()))
+        }
+        #[cfg(not(target_os = "ios"))]
+        {
+            self.entry(account)
+        }
+    }
+
+    /// Probes whether the OS keyring is readable without surfacing an error to callers.
+    ///
+    /// On iOS, performs a read of a dedicated probe account: missing entry means available;
+    /// [`keyring_core::Error::NoStorageAccess`] means locked. Other platforms always return
+    /// [`KeyringAvailability::Available`].
+    pub fn availability(&self) -> KeyringAvailability {
+        #[cfg(target_os = "ios")]
+        {
+            let entry = match self.entry(AVAILABILITY_PROBE_ACCOUNT) {
+                Ok(e) => e,
+                Err(e) => {
+                    log::warn!("keyring availability probe: entry creation failed: {e}");
+                    return KeyringAvailability::Available;
+                }
+            };
+            match entry.get_password() {
+                Ok(_) | Err(keyring_core::error::Error::NoEntry) => KeyringAvailability::Available,
+                Err(e) if is_keychain_locked_error(&e) => KeyringAvailability::Locked,
+                Err(e) => {
+                    log::warn!("keyring availability probe: unexpected error: {e}");
+                    KeyringAvailability::Available
+                }
+            }
+        }
+        #[cfg(not(target_os = "ios"))]
+        {
+            KeyringAvailability::Available
+        }
+    }
+
     /// Persists a UTF-8 secret (use [`Self::set_bytes`] for arbitrary bytes).
     pub fn set_password(&self, account: &str, password: &str) -> Result<()> {
-        let entry = self.entry(account)?;
+        let entry = self.entry_for_write(account)?;
         entry.set_password(password).map_err(map_keyring_err)
     }
 
@@ -109,9 +212,31 @@ impl KeyringStore {
         }
     }
 
+    /// Like [`Self::get_password`], but returns [`Ok(None)`] when [`Self::availability`] is [`KeyringAvailability::Locked`]
+    /// (intended for background sync without treating lock as a hard error).
+    pub fn get_password_for_background(&self, account: &str) -> Result<Option<String>> {
+        if self.availability() == KeyringAvailability::Locked {
+            return Ok(None);
+        }
+        self.get_password(account)
+    }
+
     /// Decodes Base64 from [`Self::get_password`]; returns [`None`] if missing.
     pub fn get_bytes(&self, account: &str) -> Result<Option<Vec<u8>>> {
         match self.get_password(account)? {
+            None => Ok(None),
+            Some(s) => {
+                let raw =
+                    base64::Engine::decode(&base64::engine::general_purpose::STANDARD, s.trim())
+                        .map_err(|e| Error::Encoding(e.to_string()))?;
+                Ok(Some(raw))
+            }
+        }
+    }
+
+    /// Like [`Self::get_bytes`], but returns [`Ok(None)`] when the keychain is locked ([`Self::get_password_for_background`]).
+    pub fn get_bytes_for_background(&self, account: &str) -> Result<Option<Vec<u8>>> {
+        match self.get_password_for_background(account)? {
             None => Ok(None),
             Some(s) => {
                 let raw =
@@ -143,6 +268,14 @@ impl KeyringStore {
             .get_password(account)?
             .map(|v| !v.trim().is_empty())
             .unwrap_or(false))
+    }
+
+    /// Like [`Self::exists_nonempty`], but returns `false` when the keychain is locked.
+    pub fn exists_nonempty_for_background(&self, account: &str) -> Result<bool> {
+        if self.availability() == KeyringAvailability::Locked {
+            return Ok(false);
+        }
+        self.exists_nonempty(account)
     }
 
     /// Stable account id for an unstructured secret key under a snapshot + client namespace.

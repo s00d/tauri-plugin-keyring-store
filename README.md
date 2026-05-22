@@ -19,17 +19,18 @@ Store secrets and wallet-style procedures using the **OS credential store** (mac
 
 1. [Features](#features)
 2. [Platform support](#platform-support)
-3. [Installation](#installation)
-4. [Usage](#usage)
-5. [Direct account API](#direct-account-api-bulk-exists-naming-backup)
-6. [Cargo features](#cargo-features)
-7. [Permissions](#permissions)
-8. [Relationship to Stronghold](#relationship-to-tauri-plugin-stronghold)
-9. [Development](#development)
-10. [Testing](#testing)
-11. [Contributing](#contributing)
-12. [Partners](#partners)
-13. [License](#license)
+3. [iOS Data Protection](#ios-data-protection)
+4. [Installation](#installation)
+5. [Usage](#usage)
+6. [Direct account API](#direct-account-api-bulk-exists-naming-backup)
+7. [Cargo features](#cargo-features)
+8. [Permissions](#permissions)
+9. [Relationship to Stronghold](#relationship-to-tauri-plugin-stronghold)
+10. [Development](#development)
+11. [Testing](#testing)
+12. [Contributing](#contributing)
+13. [Partners](#partners)
+14. [License](#license)
 
 ---
 
@@ -53,6 +54,57 @@ Store secrets and wallet-style procedures using the **OS credential store** (mac
 | Android | Android Keystore + SharedPreferences |
 
 Linux desktops need a Secret Service (e.g. GNOME Keyring / KWallet). Headless CI often has no user session — avoid relying on the live keyring there (see [Testing](#testing)). On Android, transitive deps may pull OpenSSL; your app may need `openssl-sys` with `vendored` for cross-builds (see Subly-style setups).
+
+---
+
+## iOS Data Protection
+
+On iOS the plugin uses the **protected** Keychain backend. **0.2.0** writes new secrets with **`AfterFirstUnlock`** by default so background tasks can read them after the first unlock of the day, even if the screen is locked again.
+
+| Layer | Responsibility |
+|-------|----------------|
+| **This plugin** | `keyring-core`, iOS `access-policy` on write, `availability()`, `Error::KeychainLocked`, `*_for_background` helpers |
+| **Host app** (e.g. Subly) | Service name, `OnceLock<KeyringStore>`, map `Error` → app errors, call `get_password_for_background` from sync |
+
+### Write policy
+
+```rust,no_run
+use tauri_plugin_keyring_store::{Builder, WriteAccessibility};
+
+// Plugin init (Tauri)
+Builder::new()
+    .ios_write_accessibility(WriteAccessibility::AfterFirstUnlock)
+    .build();
+
+// Or on a standalone KeyringStore
+let store = KeyringStore::new("com.example.app")
+    .with_write_accessibility(WriteAccessibility::AfterFirstUnlock);
+```
+
+Reads use `Entry::new` (same service/account). Writes use `Entry::new_with_modifiers` with `access-policy: after-first-unlock` on iOS only. macOS Login Keychain ignores `WriteAccessibility` for writes.
+
+**Migration:** entries created before 0.2.0 may still use `WhenUnlocked` until the user re-saves them (`set_password` / `set_bytes`). There is no bulk rekey command in this release.
+
+### Locked device vs real errors
+
+- Foreground: `get_password` → `Err(Error::KeychainLocked)` when the device is locked.
+- Background sync: `get_password_for_background` → `Ok(None)` when [`availability()`](https://docs.rs/tauri-plugin-keyring-store/latest/tauri_plugin_keyring_store/struct.KeyringStore.html#method.availability) is `Locked`.
+- `exists_nonempty_for_background` → `Ok(false)` when locked.
+
+```rust,no_run
+use tauri_plugin_keyring_store::{Error, KeyringAvailability, KeyringStore};
+
+# fn example(store: &KeyringStore) -> Result<(), Error> {
+match store.availability() {
+    KeyringAvailability::Available => { /* normal UI read */ }
+    KeyringAvailability::Locked => { /* prompt unlock or defer */ }
+}
+let secret = store.get_password_for_background("oauth-token")?;
+# Ok(())
+# }
+```
+
+IPC commands are unchanged in 0.2.0; Rust backends can use [`KeyringStore`](https://docs.rs/tauri-plugin-keyring-store/latest/tauri_plugin_keyring_store/struct.KeyringStore.html) directly without new Tauri commands.
 
 ---
 
@@ -87,13 +139,13 @@ cargo add tauri-plugin-keyring-store
 Or in `Cargo.toml`:
 
 ```toml
-tauri-plugin-keyring-store = "0.1.5"
+tauri-plugin-keyring-store = "0.2.0"
 ```
 
 Disable the SLIP10/BIP39/Ed25519 stack (storage + backup IPC only):
 
 ```toml
-tauri-plugin-keyring-store = { version = "0.1.5", default-features = false }
+tauri-plugin-keyring-store = { version = "0.2.0", default-features = false }
 ```
 
 ### Manual — JavaScript
@@ -372,7 +424,7 @@ rsvg-convert -w 128 -h 128 assets/docs-logo.svg -o assets/docs-logo.png
 
 ## Testing
 
-- **Rust**: `cargo test` — deterministic account-key tests and serde roundtrips do not need D-Bus. Tests that call the real OS store are `#[ignore]`; run locally where Secret Service / Keychain is available.
+- **Rust**: `cargo test` — deterministic account-key tests, `map_keyring_err` unit tests, and serde roundtrips do not need D-Bus. Tests that call the real OS store are `#[ignore]`; run locally where Secret Service / Keychain is available.
 - **JavaScript**: `pnpm test` (Vitest) mocks `@tauri-apps/api/core`.
 
 ---
