@@ -1,0 +1,31 @@
+Cargo.toml
+  s_15edf88a7ce28c::t_86ff34054b48d4 71
+  s_15edf88a7ce28c::t_a549ad3933342c 31
+package.json
+  s_15edf88a7ce28c::t_1ae35e2de50379 35
+examples/tauri-app/src-tauri/Cargo.toml
+  s_15edf88a7ce28c::t_48b75057edea84 18,21
+examples/tauri-app/package.json
+  s_15edf88a7ce28c::t_6c7727f800b6f1 19
+  s_15edf88a7ce28c::t_89af3c942a3a47 14
+examples/tauri-app/pnpm-lock.yaml
+  ai_agent 12,22
+pnpm-lock.yaml
+  ai_agent 12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "88a477738ffc4cc9c16ebae3af66c541dbc945b6",
+  "prompts": {},
+  "sessions": {
+    "s_15edf88a7ce28c": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "cdcc9f78-3748-4eee-801f-30e88afed34f",
+        "model": "default"
+      },
+      "human_author": "Pavel Kuzmin <Virus191288@gmail.com>"
+    }
+  }
+}
