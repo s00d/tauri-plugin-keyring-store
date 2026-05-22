@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { nextTick, onMounted, ref } from "vue";
 import type { SessionStatus } from "./keyring";
 import {
   closeSession,
@@ -18,6 +18,7 @@ import {
 } from "./keyring";
 
 const response = ref("");
+const logEl = ref<HTMLElement | null>(null);
 
 const customAccount = ref("example.user.my.token");
 const customSecret = ref("");
@@ -29,8 +30,20 @@ function syncSessionStatus(): void {
   sessionStatus.value = getSessionStatus();
 }
 
+function scrollLogToBottom(): void {
+  const el = logEl.value;
+  if (el) {
+    el.scrollTop = el.scrollHeight;
+  }
+}
+
 function appendLog(line: string): void {
   response.value += `[${new Date().toLocaleTimeString()}] ${line}<br>`;
+  void nextTick(scrollLogToBottom);
+}
+
+function clearLog(): void {
+  response.value = "";
 }
 
 async function run(fn: () => Promise<string>): Promise<void> {
@@ -92,7 +105,8 @@ const onSessionClose = () =>
 </script>
 
 <template>
-  <main class="container">
+  <div class="app-shell">
+    <main class="content">
     <h1>tauri-plugin-keyring-store example</h1>
 
     <section class="panel">
@@ -155,12 +169,83 @@ const onSessionClose = () =>
         <button type="button" @click="onDemoStoreJs">JS: KeyringSession store</button>
       </div>
     </section>
+    </main>
 
-    <div class="log" v-html="response" />
-  </main>
+    <aside class="log-dock" aria-label="Activity log">
+      <div class="log-toolbar">
+        <span class="log-title">Log</span>
+        <button type="button" class="log-clear" @click="clearLog">Clear</button>
+      </div>
+      <div ref="logEl" class="log-body" v-html="response" />
+    </aside>
+  </div>
 </template>
 
 <style scoped>
+.app-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.content {
+  flex: 1;
+  padding: 1.5rem 1rem 12rem;
+  max-width: 48rem;
+  margin: 0 auto;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.log-dock {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  height: 10.5rem;
+  border-top: 1px solid color-mix(in srgb, CanvasText 14%, transparent);
+  background: color-mix(in srgb, Canvas 92%, CanvasText 8%);
+  box-shadow: 0 -4px 24px color-mix(in srgb, CanvasText 8%, transparent);
+}
+
+.log-toolbar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.35rem 1rem;
+  border-bottom: 1px solid color-mix(in srgb, CanvasText 10%, transparent);
+}
+
+.log-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, CanvasText 70%, transparent);
+}
+
+.log-clear {
+  padding: 0.2rem 0.65rem;
+  font-size: 0.78rem;
+}
+
+.log-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.5rem 1rem 0.65rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  text-align: left;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .panel {
   max-width: 42rem;
   margin: 1.25rem auto;
@@ -241,15 +326,5 @@ button.danger {
     color: #f88;
     border-color: #a44;
   }
-}
-.log {
-  margin-top: 1rem;
-  font-family: ui-monospace, monospace;
-  font-size: 0.85rem;
-  white-space: pre-wrap;
-  max-width: 42rem;
-  margin-left: auto;
-  margin-right: auto;
-  text-align: left;
 }
 </style>
