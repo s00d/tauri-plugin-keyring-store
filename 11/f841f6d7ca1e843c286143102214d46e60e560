@@ -1,0 +1,26 @@
+examples/tauri-app/src/App.vue
+  s_15edf88a7ce28c::t_6e3d64004ee809 2
+  s_15edf88a7ce28c::t_d72f2f0015d434 172,174-181
+  s_15edf88a7ce28c::t_2534c35407148d 21
+  s_15edf88a7ce28c::t_e3aa5c795eef1c 185-248
+  s_15edf88a7ce28c::t_524500d37613e2 108-109
+  s_15edf88a7ce28c::t_76922a881b0ae9 33-39,42-46
+examples/tauri-app/src/style.css
+  s_15edf88a7ce28c::t_7be0db9dbf6df8 17-19,21-25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "11f841f6d7ca1e843c286143102214d46e60e560",
+  "prompts": {},
+  "sessions": {
+    "s_15edf88a7ce28c": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "cdcc9f78-3748-4eee-801f-30e88afed34f",
+        "model": "default"
+      },
+      "human_author": "Pavel Kuzmin <Virus191288@gmail.com>"
+    }
+  }
+}
