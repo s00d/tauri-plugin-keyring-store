@@ -1,0 +1,51 @@
+package.json
+  s_15edf88a7ce28c::t_1fcfd8dee2266a 3
+Cargo.toml
+  s_15edf88a7ce28c::t_0e065ec0439494 3
+src/plugin.rs
+  s_15edf88a7ce28c::t_32101c0b93e7ab 20-24,26
+CHANGELOG.md
+  s_15edf88a7ce28c::t_01072a819ee0c0 78
+  s_15edf88a7ce28c::t_3113165abedd36 21
+  s_15edf88a7ce28c::t_7670a2fe99ca16 8-20,22-27
+src/error.rs
+  s_15edf88a7ce28c::t_dbbef78b11e71b 20-22
+src/store.rs
+  s_15edf88a7ce28c::t_e08af5fee851ba 21-22,29-30
+  s_15edf88a7ce28c::t_59389197f057f2 41-80,82-83,112-113,121-122,126-132,143-187,190,215-223,237-249,273-278
+  s_15edf88a7ce28c::t_e6242e43a481e1 81
+src/backend.rs
+  s_15edf88a7ce28c::t_0b5b83eca6d99a 111,117,125,131
+  s_15edf88a7ce28c::t_81f0ca8abbb64a 75-92,96,100-110,112-116,118-124,126-130,132-139
+src/lib.rs
+  s_15edf88a7ce28c::t_b640539cadfe94 86-87
+  s_15edf88a7ce28c::t_77d60657c7f626 102-108,112-113,117,124
+  s_15edf88a7ce28c::t_31d09cb4a481d5 118-123,125
+  s_15edf88a7ce28c::t_d9b27364767d86 49-51
+README.md
+  s_15edf88a7ce28c::t_ea3161b06a5672 60-110
+  s_15edf88a7ce28c::t_827183e9d563ce 427
+  s_15edf88a7ce28c::t_63e12b4c8dc069 22-23
+  s_15edf88a7ce28c::t_805b68b29ffd67 24-33
+  s_15edf88a7ce28c::t_2b76ae8aead648 142
+  s_15edf88a7ce28c::t_09ea2916a8f4cf 148
+tests/models_serde.rs
+  s_15edf88a7ce28c::t_bb6295d02d3456 5
+  s_15edf88a7ce28c::t_452e2c90bc4e5a 11-19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "971797a8a0460c81a9d952ebe1f94d312b8bdbf4",
+  "prompts": {},
+  "sessions": {
+    "s_15edf88a7ce28c": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "cdcc9f78-3748-4eee-801f-30e88afed34f",
+        "model": "default"
+      },
+      "human_author": "Pavel Kuzmin <Virus191288@gmail.com>"
+    }
+  }
+}
