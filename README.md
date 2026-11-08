@@ -37,7 +37,7 @@ Store secrets and wallet-style procedures using the **OS credential store** (mac
 ## Features
 
 - **Cross-platform keyring** via [`keyring-core`](https://crates.io/crates/keyring-core) `1.x` and official backend crates (native stores only — no silent in-memory fallback).
-- **Rust-first API**: `app.keyring()` exposes [`KeyringPlugin`] with [`KeyringStore`] for backend code without IPC.
+- **Rust-first API**: `app.keyring()` exposes [`KeyringPlugin`](https://docs.rs/tauri-plugin-keyring-store/latest/tauri_plugin_keyring_store/struct.KeyringPlugin.html) with [`KeyringStore`](https://docs.rs/tauri-plugin-keyring-store/latest/tauri_plugin_keyring_store/struct.KeyringStore.html) for backend code without IPC.
 - **Stronghold-shaped JS API**: [`KeyringSession`](guest-js/index.ts), [`KeyringClient`](guest-js/index.ts), [`KeyringStoreView`](guest-js/index.ts), [`KeyringVault`](guest-js/index.ts) + SLIP10 / BIP39 / Ed25519 procedures when the `crypto` feature is enabled.
 - **Optional `crypto` feature** (default): SLIP10/BIP39/Ed25519 via [`iota-crypto`](https://crates.io/crates/iota-crypto); secrets stored as Base64 in the OS vault.
 
@@ -64,29 +64,33 @@ Requires Rust **1.88+**.
 
 ## iOS Data Protection
 
-On iOS the plugin uses the **protected** Keychain backend. **0.2.0** writes new secrets with **`AfterFirstUnlock`** by default so background tasks can read them after the first unlock of the day, even if the screen is locked again.
+On iOS the plugin uses the **protected** Keychain backend. Since **0.2.0** new secrets are written with **`AfterFirstUnlock`** by default so background tasks can read them after the first unlock of the day, even if the screen is locked again.
 
 | Layer | Responsibility |
 |-------|----------------|
 | **This plugin** | `keyring-core`, iOS `access-policy` on write, `availability()`, `Error::KeychainLocked`, `*_for_background` helpers |
-| **Host app** (e.g. Subly) | Service name, `OnceLock<KeyringStore>`, map `Error` → app errors, call `get_password_for_background` from sync |
+| **Host app** | Service name, `OnceLock<KeyringStore>`, map `Error` → app errors, call `get_password_for_background` from sync |
 
 ### Write policy
 
+Both setters exist only when compiling for iOS, so guard them with `#[cfg(target_os = "ios")]` in cross-platform code:
+
 ```rust,no_run
-use tauri_plugin_keyring_store::{Builder, WriteAccessibility};
+use tauri_plugin_keyring_store::{Builder, KeyringStore, WriteAccessibility};
 
 // Plugin init (Tauri)
-Builder::new()
-    .ios_write_accessibility(WriteAccessibility::AfterFirstUnlock)
+#[cfg(target_os = "ios")]
+let plugin = Builder::new()
+    .ios_write_accessibility(WriteAccessibility::WhenUnlocked)
     .build();
 
 // Or on a standalone KeyringStore
+#[cfg(target_os = "ios")]
 let store = KeyringStore::new("com.example.app")
-    .with_write_accessibility(WriteAccessibility::AfterFirstUnlock);
+    .with_write_accessibility(WriteAccessibility::WhenUnlocked);
 ```
 
-Reads use `Entry::new` (same service/account). Writes use `Entry::new_with_modifiers` with `access-policy: after-first-unlock` on iOS only. macOS Login Keychain ignores `WriteAccessibility` for writes.
+Reads use `Entry::new` (same service/account). Writes use `Entry::new_with_modifiers` with the chosen `access-policy` (default `after-first-unlock`) on iOS only; macOS writes are unaffected.
 
 **Migration:** entries created before 0.2.0 may still use `WhenUnlocked` until the user re-saves them (`set_password` / `set_bytes`). There is no bulk rekey command in this release.
 
@@ -109,7 +113,7 @@ let secret = store.get_password_for_background("oauth-token")?;
 # }
 ```
 
-IPC commands are unchanged in 0.2.0; Rust backends can use [`KeyringStore`](https://docs.rs/tauri-plugin-keyring-store/latest/tauri_plugin_keyring_store/struct.KeyringStore.html) directly without new Tauri commands.
+`availability()` and the `*_for_background` helpers are Rust-only (no IPC commands): call them on [`KeyringStore`](https://docs.rs/tauri-plugin-keyring-store/latest/tauri_plugin_keyring_store/struct.KeyringStore.html) from your own commands or background tasks. Over IPC a locked keychain arrives as the error string `keychain locked or protected data unavailable`.
 
 ---
 
@@ -187,7 +191,6 @@ tauri_plugin_keyring_store::Builder::new()
 ### Rust — access the store from commands / plugins
 
 ```rust
-use tauri::Manager;
 use tauri_plugin_keyring_store::KeyringExt;
 
 #[tauri::command]
@@ -219,7 +222,7 @@ import { KeyringSession } from 'tauri-plugin-keyring-store-api'
 
 const session = await KeyringSession.load('/wallet/main', '')
 const client = await session.createClient('main')
-await client.getStore().insert('prefs', [...new TextEncoder().encode('{}')])
+await client.getStore().insert('prefs', new TextEncoder().encode('{}'))
 await session.unload()
 ```
 
@@ -243,7 +246,7 @@ const value = await ping('hello') // string | null
 | `session.unload()` | Drops session tracking (`destroy`). |
 | `session.createClient(client)` | First-time client namespace (`create_client`). |
 | `session.loadClient(client)` | Existing client (`load_client`). |
-| `session.save()` | **No-op** on keyring (`save` IPC for Stronghold parity). |
+| `session.save()` | Writes nothing (entries are stored immediately); fails if the session is not loaded, like Stronghold. |
 
 ```typescript
 import { KeyringSession } from 'tauri-plugin-keyring-store-api'
@@ -272,8 +275,8 @@ await session.unload()
 
 ```typescript
 const store = client.getStore()
-const raw = await store.get('prefs')
-await store.insert('prefs', [...new TextEncoder().encode('{}')])
+const raw = await store.get('prefs') // Uint8Array | null
+await store.insert('prefs', new TextEncoder().encode('{}'))
 await store.remove('prefs')
 ```
 
@@ -291,7 +294,7 @@ const row = Location.counter('WALLET', 0)
 | `KeyringVault` method | IPC / behavior |
 |----------------------|----------------|
 | `insert(recordPath, secret)` | `save_secret` |
-| `remove(location)` | `remove_secret` (pass `Location.generic` or `Location.counter`) |
+| `remove(location)` | `remove_secret`: deletes `location`'s record (or counter) **in this vault**; the location's own vault name is ignored |
 | `generateSLIP10Seed(output, sizeBytes?)` | SLIP10Generate (`sizeBytes` 16..=64, default 32) → empty array |
 | `deriveSLIP10(chain, 'Seed' \| 'Key', src, output)` | SLIP10Derive → 32-byte chain code of the child key |
 | `recoverBIP39(mnemonic, output, passphrase?)` | BIP39Recover → empty array |
@@ -306,8 +309,12 @@ import { KeyringSession, Location } from 'tauri-plugin-keyring-store-api'
 
 const session = await KeyringSession.load('/vault-a', '')
 const vault = (await session.createClient('c1')).getVault('PRIMARY')
-const out = Location.generic('PRIMARY', 'slip10-master')
-await vault.generateSLIP10Seed(out, 32)
+const master = Location.generic('PRIMARY', 'master')
+
+// Show these words to the user once for backup; only Rust keeps the key.
+const words = new TextDecoder().decode(await vault.generateBIP39(master))
+const publicKey = await vault.getEd25519PublicKey(master) // 32 bytes
+const signature = await vault.signEd25519(master, 'hello') // 64 bytes
 await session.unload()
 ```
 
@@ -341,12 +348,14 @@ Raw **account** strings are the OS keyring entry names under your app **service*
 
 | IPC command | Purpose |
 |-------------|---------|
-| `get_passwords` | Read many UTF-8 secrets (parallel `Vec`, max **256** accounts per call). |
+| `get_passwords` | Read many UTF-8 secrets; result order matches the input, `null` for missing ones. |
 | `set_passwords` | Write many `{ account, secret }` pairs. |
 | `delete_passwords` | Delete many accounts. |
 | `password_exists` | `true` if a non-empty secret exists (`exists_nonempty`). |
 | `export_passwords_plain` / `import_passwords_plain` | JSON backup blob over IPC. |
 | `export_passwords_encrypted` / `import_passwords_encrypted` | Argon2id + ChaCha20-Poly1305 envelope (always compiled; independent of the `crypto` feature). |
+
+Bulk commands and imports take at most **256** items per call; an import is validated as a whole before anything is written. Accounts are trimmed, must be non-empty and at most 512 bytes.
 
 **Naming (application convention):** use `prefix.name` with a single dot — helpers [`join_prefix`](https://docs.rs/tauri-plugin-keyring-store/latest/tauri_plugin_keyring_store/fn.join_prefix.html) / [`split_prefixed`](https://docs.rs/tauri-plugin-keyring-store/latest/tauri_plugin_keyring_store/fn.split_prefixed.html) in Rust, and `joinKeyPrefix` / `splitKeyPrefix` in guest-js (see [Usage → Naming helpers](#naming-helpers)). The OS keyring still does **not** support listing by prefix; keep your own index of logical keys if needed.
 
@@ -418,12 +427,15 @@ Use `keyring-store:default` or granular `keyring-store:allow-*` (see [`permissio
 cargo fmt --all
 cargo clippy --all-targets --all-features -- -D warnings
 cargo test
-cargo build --no-default-features
+cargo test --no-default-features
 
 pnpm install
-pnpm build
+pnpm typecheck
+pnpm build   # also runs publint, attw and the ESM/CJS smoke check
 pnpm test
 ```
+
+The example app is in [`examples/tauri-app`](examples/tauri-app) (desktop, Android and iOS).
 
 Rustdoc logo (after push to `main`): PNG is generated from [`assets/docs-logo.svg`](assets/docs-logo.svg):
 
