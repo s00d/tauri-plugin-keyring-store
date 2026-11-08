@@ -23,7 +23,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        include:
+          # One runner per OS; mobile cross-builds ride along on Linux (Android) and macOS (iOS).
+          - os: ubuntu-latest
+            mobile: aarch64-linux-android
+          - os: macos-latest
+            mobile: aarch64-apple-ios
+          - os: windows-latest
+            mobile: ""
     steps:
       - uses: actions/checkout@v4
 
@@ -37,6 +44,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
+          targets: ${{ matrix.mobile }}
       - uses: Swatinem/rust-cache@v2
 
       - name: Format
@@ -81,46 +89,25 @@ jobs:
       - name: guest-js tests
         run: pnpm test
 
-  android-build:
-    name: build (${{ matrix.target }})
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        target: [aarch64-linux-android, x86_64-linux-android]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
-      - uses: Swatinem/rust-cache@v2
       - uses: nttld/setup-ndk@v1
+        if: runner.os == 'Linux'
         id: ndk
         with:
           ndk-version: r27c
       - name: Build for Android (Keystore backend)
+        if: runner.os == 'Linux'
         shell: bash
         env:
           NDK: ${{ steps.ndk.outputs.ndk-path }}
         run: |
           tb="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin"
-          triple="${{ matrix.target }}"
+          triple="${{ matrix.mobile }}"
           up=$(echo "$triple" | tr 'a-z-' 'A-Z_')
           export CC_${triple//-/_}="$tb/${triple}24-clang"
           export AR_${triple//-/_}="$tb/llvm-ar"
           export CARGO_TARGET_${up}_LINKER="$tb/${triple}24-clang"
           cargo build --target "$triple"
 
-  ios-build:
-    name: build (aarch64-apple-ios)
-    runs-on: macos-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: aarch64-apple-ios
-      - uses: Swatinem/rust-cache@v2
       - name: Build for iOS (data-protection keychain backend)
-        run: cargo build --target aarch64-apple-ios
+        if: runner.os == 'macOS'
+        run: cargo build --target ${{ matrix.mobile }}
