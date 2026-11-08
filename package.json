@@ -1,6 +1,6 @@
 {
   "name": "tauri-plugin-keyring-store-api",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "author": "s00d",
   "description": "JavaScript API for tauri-plugin-keyring-store — OS keychain / credential manager storage with Stronghold-compatible sessions.",
   "license": "MIT OR Apache-2.0",
@@ -40,7 +40,7 @@
     "check:dist": "publint --strict && attw --pack . --profile node16 && node scripts/check-dist.mjs"
   },
   "dependencies": {
-    "@tauri-apps/api": "^2.11.0"
+    "@tauri-apps/api": "2.11.0"
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.5",

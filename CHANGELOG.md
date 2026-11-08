@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.2.0] - 2026-11-08
+## [0.3.0] - 2026-11-08
 
 ### Security
 
@@ -27,12 +27,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Breaking:** procedure return values above; `Error` is `#[non_exhaustive]` and has a new `NoStorageAccess` variant (locked store, cancelled prompt, missing entitlement); `KeyringStore::account_store_key` takes `impl AsRef<[u8]>`.
-- Edition 2024, MSRV 1.88. `argon2` 0.6, `chacha20poly1305` 0.11 (encrypted backups from 0.1.x still decrypt), `base64` 0.23; removed unused `log`, `rand` and the `generic-array` pin.
+- **Breaking:** procedure return values above; `Error` is `#[non_exhaustive]`; `KeyringStore::account_store_key` takes `impl AsRef<[u8]>`.
+- Edition 2024, MSRV 1.88. `KeyringStore` errors on entry creation (including iOS write modifiers) go through the same mapping, so a locked store reports `KeychainLocked` there too. `argon2` 0.6, `chacha20poly1305` 0.11 (encrypted backups from 0.1.x still decrypt), `base64` 0.23; removed unused `log`, `rand` and the `generic-array` pin.
 - guest-js built with Vite 8 (ESM + CJS), TypeScript 6, Vitest 5; separate `index.d.cts`, nested `exports`, `sideEffects: false`; dist checked with publint, attw and an export smoke test. Rollup and tslib removed.
 - Tests: IPC tests through `tauri::test`, procedure tests on the keyring-core mock store, and a live write/read/delete test against the real OS store.
 - CI on Linux (gnome-keyring), macOS and Windows plus Android and iOS builds. Windows test binaries embed the Common-Controls v6 manifest.
 - Example: tauri 2.12, password API from JS, vault demo, log rendered as text (it used `v-html` with secret values), autocorrect / autocapitalize off.
+## [0.2.0] - 2026-05-22
+
+### Added
+
+- **`WriteAccessibility`** (iOS/macOS): configure Data Protection for new writes; default on iOS is **`AfterFirstUnlock`** via `access-policy` modifiers on `set_password` / `set_bytes`.
+- **`Builder::ios_write_accessibility`** to set the write policy at plugin init.
+- **`Error::KeychainLocked`**: distinct from generic `Keyring(String)` when the protected store is unavailable (device locked, `errSecNotAvailable`, etc.).
+- **`KeyringAvailability`** and **`KeyringStore::availability()`** — probe-read without UIKit in the host app.
+- **Background helpers**: `get_password_for_background`, `get_bytes_for_background`, `exists_nonempty_for_background` return `None` / `false` when locked instead of surfacing `KeychainLocked`.
+
+### Changed
+
+- iOS writes use `Entry::new_with_modifiers` with `after-first-unlock` by default; reads still use `Entry::new` (same service/account).
+- **npm** [`tauri-plugin-keyring-store-api`](https://www.npmjs.com/package/tauri-plugin-keyring-store-api) bumped to **0.2.0** (aligned with the Rust crate; guest-js API unchanged).
+
+### Notes
+
+- Credentials written before 0.2.0 keep their previous accessibility until re-saved (`set_password` / `set_bytes`). No automatic migration command in this release.
+- Downstream apps with exhaustive `match` on `Error` must handle `KeychainLocked` (minor breaking within 0.x).
 
 ## [0.1.5] - 2026-05-13
 
@@ -84,6 +103,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rust [`naming`](https://docs.rs/tauri-plugin-keyring-store/latest/tauri_plugin_keyring_store/naming/index.html) helpers (`join_prefix`, `split_prefixed`) and guest-js `joinKeyPrefix` / `splitKeyPrefix`.
 - Guest-js: `getPasswords`, `setPasswords`, `deletePasswords`, `passwordExists`, `exportPasswordsPlain`, `importPasswordsPlain`, `exportPasswordsEncrypted`, `importPasswordsEncrypted`.
 
+[0.3.0]: https://github.com/s00d/tauri-plugin-keyring-store/releases/tag/v0.3.0
+[0.2.0]: https://github.com/s00d/tauri-plugin-keyring-store/releases/tag/v0.2.0
 [0.1.5]: https://github.com/s00d/tauri-plugin-keyring-store/releases/tag/v0.1.5
 [0.1.4]: https://github.com/s00d/tauri-plugin-keyring-store/releases/tag/v0.1.4
 [0.1.3]: https://github.com/s00d/tauri-plugin-keyring-store/releases/tag/v0.1.3

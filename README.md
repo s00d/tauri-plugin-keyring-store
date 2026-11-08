@@ -19,17 +19,18 @@ Store secrets and wallet-style procedures using the **OS credential store** (mac
 
 1. [Features](#features)
 2. [Platform support](#platform-support)
-3. [Installation](#installation)
-4. [Usage](#usage)
-5. [Direct account API](#direct-account-api-bulk-exists-naming-backup)
-6. [Cargo features](#cargo-features)
-7. [Permissions](#permissions)
-8. [Relationship to Stronghold](#relationship-to-tauri-plugin-stronghold)
-9. [Development](#development)
-10. [Testing](#testing)
-11. [Contributing](#contributing)
-12. [Partners](#partners)
-13. [License](#license)
+3. [iOS Data Protection](#ios-data-protection)
+4. [Installation](#installation)
+5. [Usage](#usage)
+6. [Direct account API](#direct-account-api-bulk-exists-naming-backup)
+7. [Cargo features](#cargo-features)
+8. [Permissions](#permissions)
+9. [Relationship to Stronghold](#relationship-to-tauri-plugin-stronghold)
+10. [Development](#development)
+11. [Testing](#testing)
+12. [Contributing](#contributing)
+13. [Partners](#partners)
+14. [License](#license)
 
 ---
 
@@ -58,6 +59,57 @@ Requires Rust **1.88+**.
 - **Windows**: Credential Manager limits a secret to **2560 bytes**. Store records and vault secrets are Base64-encoded, so keep their raw size under ~1.9 KB there.
 - **iOS**: the data-protection keychain needs a signed app (an `application-identifier` entitlement). Device builds and `tauri ios dev` (signs with "Sign to Run Locally") have it; `tauri ios build --target aarch64-sim` builds **unsigned** and every call fails with `A required entitlement is not present`.
 - **Android**: the store is created from the activity context that Tauri/tao registers with `ndk-context`; no extra setup.
+
+---
+
+## iOS Data Protection
+
+On iOS the plugin uses the **protected** Keychain backend. **0.2.0** writes new secrets with **`AfterFirstUnlock`** by default so background tasks can read them after the first unlock of the day, even if the screen is locked again.
+
+| Layer | Responsibility |
+|-------|----------------|
+| **This plugin** | `keyring-core`, iOS `access-policy` on write, `availability()`, `Error::KeychainLocked`, `*_for_background` helpers |
+| **Host app** (e.g. Subly) | Service name, `OnceLock<KeyringStore>`, map `Error` → app errors, call `get_password_for_background` from sync |
+
+### Write policy
+
+```rust,no_run
+use tauri_plugin_keyring_store::{Builder, WriteAccessibility};
+
+// Plugin init (Tauri)
+Builder::new()
+    .ios_write_accessibility(WriteAccessibility::AfterFirstUnlock)
+    .build();
+
+// Or on a standalone KeyringStore
+let store = KeyringStore::new("com.example.app")
+    .with_write_accessibility(WriteAccessibility::AfterFirstUnlock);
+```
+
+Reads use `Entry::new` (same service/account). Writes use `Entry::new_with_modifiers` with `access-policy: after-first-unlock` on iOS only. macOS Login Keychain ignores `WriteAccessibility` for writes.
+
+**Migration:** entries created before 0.2.0 may still use `WhenUnlocked` until the user re-saves them (`set_password` / `set_bytes`). There is no bulk rekey command in this release.
+
+### Locked device vs real errors
+
+- Foreground: `get_password` → `Err(Error::KeychainLocked)` when the device is locked.
+- Background sync: `get_password_for_background` → `Ok(None)` when [`availability()`](https://docs.rs/tauri-plugin-keyring-store/latest/tauri_plugin_keyring_store/struct.KeyringStore.html#method.availability) is `Locked`.
+- `exists_nonempty_for_background` → `Ok(false)` when locked.
+
+```rust,no_run
+use tauri_plugin_keyring_store::{Error, KeyringAvailability, KeyringStore};
+
+# fn example(store: &KeyringStore) -> Result<(), Error> {
+match store.availability() {
+    KeyringAvailability::Available => { /* normal UI read */ }
+    KeyringAvailability::Locked => { /* prompt unlock or defer */ }
+}
+let secret = store.get_password_for_background("oauth-token")?;
+# Ok(())
+# }
+```
+
+IPC commands are unchanged in 0.2.0; Rust backends can use [`KeyringStore`](https://docs.rs/tauri-plugin-keyring-store/latest/tauri_plugin_keyring_store/struct.KeyringStore.html) directly without new Tauri commands.
 
 ---
 
@@ -92,13 +144,13 @@ cargo add tauri-plugin-keyring-store
 Or in `Cargo.toml`:
 
 ```toml
-tauri-plugin-keyring-store = "0.2"
+tauri-plugin-keyring-store = "0.3"
 ```
 
 Disable the SLIP10/BIP39/Ed25519 stack (storage + backup IPC only):
 
 ```toml
-tauri-plugin-keyring-store = { version = "0.2", default-features = false }
+tauri-plugin-keyring-store = { version = "0.3", default-features = false }
 ```
 
 ### Manual — JavaScript

@@ -2,10 +2,17 @@
 
 use serde_json::json;
 use tauri_plugin_keyring_store::{
-    BytesDto, DurationDto, KeyType, LocationDto, PasswordBackupEncryptedDto,
+    BytesDto, DurationDto, Error, KeyType, LocationDto, PasswordBackupEncryptedDto,
     PasswordBackupEntryDto, PasswordBackupPlainDto, PasswordEntryDto, PingRequest, ProcedureDto,
     Slip10DeriveInputDto,
 };
+
+#[test]
+fn error_keychain_locked_serializes_as_string() {
+    let e = Error::KeychainLocked;
+    let s = serde_json::to_string(&e).unwrap();
+    assert_eq!(s, "\"keychain locked or protected data unavailable\"");
+}
 
 #[test]
 fn bytes_dto_text_roundtrip() {

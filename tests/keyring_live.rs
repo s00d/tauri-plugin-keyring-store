@@ -31,7 +31,7 @@ fn os_keyring_write_read_delete() {
 
     match store.set_password(account, secret) {
         Ok(()) => {}
-        Err(e @ (Error::Init(_) | Error::NoStorageAccess(_) | Error::Keyring(_)))
+        Err(e @ (Error::Init(_) | Error::KeychainLocked | Error::Keyring(_)))
             if std::env::var_os("KEYRING_LIVE_REQUIRED").is_none() =>
         {
             eprintln!("skipping: OS keyring unavailable: {e}");

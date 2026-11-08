@@ -17,8 +17,13 @@ pub struct KeyringPlugin {
 impl KeyringPlugin {
     /// Builds plugin state; normally done inside [`crate::Builder::build`].
     pub fn new(service: impl Into<String>) -> Self {
+        Self::from_store(KeyringStore::new(service))
+    }
+
+    /// Builds plugin state from a pre-configured [`KeyringStore`].
+    pub fn from_store(store: KeyringStore) -> Self {
         Self {
-            store: Arc::new(KeyringStore::new(service)),
+            store: Arc::new(store),
             sessions: SessionRegistry::default(),
         }
     }

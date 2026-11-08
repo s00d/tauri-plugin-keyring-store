@@ -20,10 +20,9 @@ pub enum Error {
     /// Platform backend could not be registered (e.g. missing OS APIs in doc builds).
     #[error("plugin initialization failed: {0}")]
     Init(String),
-    /// The OS denied access to the credential store (locked keyring, user cancelled the
-    /// system prompt, missing entitlement, …).
-    #[error("keyring access denied: {0}")]
-    NoStorageAccess(String),
+    /// Keychain / protected store unavailable while the device is locked (iOS Data Protection).
+    #[error("keychain locked or protected data unavailable")]
+    KeychainLocked,
     /// Wrapped error from [`keyring_core`] / native store.
     #[error("keyring error: {0}")]
     Keyring(String),

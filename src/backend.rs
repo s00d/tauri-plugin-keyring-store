@@ -84,10 +84,68 @@ pub(crate) fn use_mock_store_for_tests() {
     });
 }
 
+fn is_keychain_locked_platform(err: &(dyn std::error::Error + Send + Sync)) -> bool {
+    let msg = format!("{err}");
+    msg.contains("-25291")
+        || msg.contains("-25292")
+        || msg.contains("-25308")
+        || msg.contains("errSecNotAvailable")
+        || msg.contains("errSecReadOnly")
+        || msg.contains("interaction not allowed")
+}
+
+pub(crate) fn is_keychain_locked_error(e: &KeyringError) -> bool {
+    match e {
+        KeyringError::NoStorageAccess(_) => true,
+        KeyringError::PlatformFailure(inner) => is_keychain_locked_platform(inner.as_ref()),
+        _ => false,
+    }
+}
+
 pub(crate) fn map_keyring_err(e: KeyringError) -> crate::Error {
     match e {
         KeyringError::NoEntry => crate::Error::NoEntry,
-        KeyringError::NoStorageAccess(e) => crate::Error::NoStorageAccess(e.to_string()),
+        e if is_keychain_locked_error(&e) => crate::Error::KeychainLocked,
         other => crate::Error::Keyring(other.to_string()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use keyring_core::error::Error as KE;
+    use std::io;
+
+    use crate::Error;
+
+    #[test]
+    fn no_storage_access_maps_to_keychain_locked() {
+        let e = KE::NoStorageAccess(Box::new(io::Error::other("OSStatus -25291")));
+        assert!(matches!(map_keyring_err(e), Error::KeychainLocked));
+    }
+
+    #[test]
+    fn platform_failure_err_sec_not_available() {
+        let e = KE::PlatformFailure(Box::new(io::Error::other("errSecNotAvailable (-25291)")));
+        assert!(matches!(map_keyring_err(e), Error::KeychainLocked));
+    }
+
+    #[test]
+    fn platform_failure_interaction_not_allowed() {
+        let e = KE::PlatformFailure(Box::new(io::Error::other("interaction not allowed")));
+        assert!(matches!(map_keyring_err(e), Error::KeychainLocked));
+    }
+
+    #[test]
+    fn unrelated_platform_failure_stays_keyring() {
+        let e = KE::PlatformFailure(Box::new(io::Error::other(
+            "errSecMissingEntitlement (-34018)",
+        )));
+        assert!(matches!(map_keyring_err(e), Error::Keyring(_)));
+    }
+
+    #[test]
+    fn no_entry_unchanged() {
+        assert!(matches!(map_keyring_err(KE::NoEntry), Error::NoEntry));
     }
 }

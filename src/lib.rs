@@ -46,7 +46,9 @@ pub use error::{Error, Result};
 pub use models::*;
 pub use naming::{PREFIX_SEPARATOR, join_prefix, split_prefixed};
 pub use plugin::KeyringPlugin;
-pub use store::{INTERNAL_ACCOUNT_PREFIX, KeyringStore, SessionRegistry};
+#[cfg(any(target_os = "ios", target_os = "macos"))]
+pub use store::WriteAccessibility;
+pub use store::{INTERNAL_ACCOUNT_PREFIX, KeyringAvailability, KeyringStore, SessionRegistry};
 
 use tauri::plugin::{Builder as PluginBuilder, TauriPlugin};
 use tauri::{Manager, Runtime};
@@ -81,6 +83,8 @@ impl<R: Runtime, T: Manager<R>> KeyringExt<R> for T {
 #[derive(Default)]
 pub struct Builder {
     service: Option<String>,
+    #[cfg(target_os = "ios")]
+    ios_write_accessibility: Option<WriteAccessibility>,
 }
 
 impl Builder {
@@ -95,12 +99,30 @@ impl Builder {
         self
     }
 
+    /// iOS Data Protection policy for new credential writes (default: [`WriteAccessibility::AfterFirstUnlock`]).
+    #[cfg(target_os = "ios")]
+    pub fn ios_write_accessibility(mut self, policy: WriteAccessibility) -> Self {
+        self.ios_write_accessibility = Some(policy);
+        self
+    }
+
     /// Build the plugin for registration via [`tauri::Builder::plugin`].
     pub fn build<R: Runtime>(self) -> TauriPlugin<R> {
         let service_hint = self.service;
+        #[cfg(target_os = "ios")]
+        let ios_write_accessibility = self.ios_write_accessibility;
         PluginBuilder::new("keyring-store")
             .setup(move |app, _api| {
                 let service = service_hint.unwrap_or_else(|| app.config().identifier.clone());
+                #[cfg(target_os = "ios")]
+                {
+                    let mut store = KeyringStore::new(service);
+                    if let Some(policy) = ios_write_accessibility {
+                        store = store.with_write_accessibility(policy);
+                    }
+                    app.manage(KeyringPlugin::from_store(store));
+                }
+                #[cfg(not(target_os = "ios"))]
                 app.manage(KeyringPlugin::new(service));
                 Ok(())
             })
