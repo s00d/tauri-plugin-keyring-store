@@ -274,16 +274,19 @@ export class KeyringVault extends ProcedureExecutor {
     })
   }
 
+  /**
+   * Removes the record at `location`, in the vault named by `location` (not `this.name`).
+   * A counter location `n` addresses the same record as the generic record `String(n)`.
+   */
   async remove(location: Location): Promise<void> {
+    const payload = location.payload as { vault: VaultPath; record?: RecordPath; counter?: number }
     const recordPath =
-      location.type === 'Generic'
-        ? toBytesDto((location.payload as { record: RecordPath }).record)
-        : String((location.payload as { counter: number }).counter)
+      location.type === 'Generic' ? toBytesDto(payload.record as RecordPath) : String(payload.counter)
 
     await invoke('plugin:keyring-store|remove_secret', {
       snapshotPath: this.path,
       client: toBytesDto(this.client),
-      vault: toBytesDto(this.name),
+      vault: toBytesDto(payload.vault),
       recordPath
     })
   }

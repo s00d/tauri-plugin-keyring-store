@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-11-08
+
+No API changes.
+
+### Security
+
+- **`kp:` guard ignores case.** The password commands rejected only lowercase `kp:` accounts. Windows credential names are case-insensitive, so `KP:…` reached session store records and vault keys there. Now any letter case is rejected.
+
+### Fixed
+
+- **Backend init is retried.** A failed keyring backend start (e.g. no D-Bus session yet) was cached for the life of the process. Now only success is cached; after a failure the next call tries again after a 2-second pause.
+- **`KeyringVault.remove(location)`** deleted from the vault the `KeyringVault` was opened for and ignored the vault in `location`. It now uses the location's vault.
+
+### Added
+
+- `KeyringStore::with_store(...)`: use any `keyring-core` store (e.g. `linux-keyutils-keyring-store`) for one handle; `init()` is unchanged.
+
+### Documentation
+
+- Linux without a desktop session: a Secret Service unlock prompt can block a call for a very long time.
+- The session password is not verified.
+- Windows: real limit for store records and vault secrets is about 960 bytes (Base64, then UTF-16 in a 2560-byte blob).
+- Counter location `7` and generic record `"7"` are the same record.
+
 ## [0.3.0] - 2026-11-08
 
 ### Security
@@ -103,6 +127,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rust [`naming`](https://docs.rs/tauri-plugin-keyring-store/latest/tauri_plugin_keyring_store/naming/index.html) helpers (`join_prefix`, `split_prefixed`) and guest-js `joinKeyPrefix` / `splitKeyPrefix`.
 - Guest-js: `getPasswords`, `setPasswords`, `deletePasswords`, `passwordExists`, `exportPasswordsPlain`, `importPasswordsPlain`, `exportPasswordsEncrypted`, `importPasswordsEncrypted`.
 
+[0.3.1]: https://github.com/s00d/tauri-plugin-keyring-store/releases/tag/v0.3.1
 [0.3.0]: https://github.com/s00d/tauri-plugin-keyring-store/releases/tag/v0.3.0
 [0.2.0]: https://github.com/s00d/tauri-plugin-keyring-store/releases/tag/v0.2.0
 [0.1.5]: https://github.com/s00d/tauri-plugin-keyring-store/releases/tag/v0.1.5

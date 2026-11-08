@@ -36,7 +36,13 @@ pub(crate) fn normalize_account(account: &str) -> Result<String> {
             "account string too long (max 512)".into(),
         ));
     }
-    if account.starts_with(INTERNAL_ACCOUNT_PREFIX) {
+    // Case-insensitive: Windows credential names ignore case, so `KP:` would reach `kp:` records.
+    let head: String = account
+        .chars()
+        .take(3)
+        .flat_map(char::to_lowercase)
+        .collect();
+    if head == INTERNAL_ACCOUNT_PREFIX {
         return Err(crate::Error::Naming(format!(
             "accounts starting with '{INTERNAL_ACCOUNT_PREFIX}' are reserved for session records"
         )));
@@ -213,7 +219,8 @@ pub(crate) async fn ping(payload: PingRequest) -> Result<PingResponse> {
     })
 }
 
-/// The password is accepted for Stronghold API parity only: secrets are protected by the OS
+/// The password is accepted for Stronghold API parity only and is **not verified** (any
+/// password opens any session): secrets are protected by the OS
 /// store, so it is wiped immediately and never stored or compared.
 #[command]
 pub(crate) async fn initialize(

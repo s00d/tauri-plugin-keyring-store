@@ -56,7 +56,9 @@ Store secrets and wallet-style procedures using the **OS credential store** (mac
 Requires Rust **1.88+**.
 
 - **Linux**: needs a running Secret Service (GNOME Keyring, KWallet, KeePassXC…) and `libdbus-1-dev` + `pkg-config` to build. Headless machines can start one with `dbus-run-session` + `gnome-keyring-daemon --unlock` (that is what CI does, see [Testing](#testing)).
-- **Windows**: Credential Manager limits a secret to **2560 bytes**. Store records and vault secrets are Base64-encoded, so keep their raw size under ~1.9 KB there.
+  **No desktop session:** if the collection is locked, Secret Service asks for the password through a GUI prompt. Without a display nobody can answer it, and the call (and the plugin command) waits for a very long time — the underlying library allows up to a year. On servers / CI unlock the keyring up front as above, or use a different store with [`KeyringStore::with_store`](#custom-credential-store) (e.g. `linux-keyutils-keyring-store`, which never prompts but keeps secrets only for the login session).
+  If the backend fails to start (e.g. no D-Bus yet), the error is not cached forever: the next call after a 2-second pause tries again.
+- **Windows**: Credential Manager limits a secret to **2560 bytes**, and text is stored as UTF-16 (2 bytes per character). Passwords therefore fit up to **1280 UTF-16 characters**. Store records and vault secrets are Base64 text, then UTF-16, so the real limit for their raw value is about **960 bytes**. Larger writes fail with a keyring error.
 - **iOS**: the data-protection keychain needs a signed app (an `application-identifier` entitlement). Device builds and `tauri ios dev` (signs with "Sign to Run Locally") have it; `tauri ios build --target aarch64-sim` builds **unsigned** and every call fails with `A required entitlement is not present`.
 - **Android**: the store is created from the activity context that Tauri/tao registers with `ndk-context`; no extra setup.
 
@@ -201,6 +203,20 @@ fn save_api_token(app: tauri::AppHandle, token: String) -> Result<(), String> {
 }
 ```
 
+### Custom credential store
+
+`KeyringStore::with_store` points a handle at any [`keyring-core`](https://docs.rs/keyring-core) store instead of the process-wide default (the plugin from `init()` keeps the default):
+
+```rust,ignore
+use tauri_plugin_keyring_store::KeyringStore;
+
+let store = KeyringStore::new("com.example.app")
+    .with_store(linux_keyutils_keyring_store::Store::new()?);
+store.set_password("app.token", "secret")?;
+```
+
+`KeyringStore` methods block (OS prompts, D-Bus); call them from `spawn_blocking` in async code.
+
 Sessions opened from the frontend (`initialize`) are tracked separately; low-level [`KeyringStore`](https://docs.rs/tauri-plugin-keyring-store/latest/tauri_plugin_keyring_store/struct.KeyringStore.html) calls use whatever account string you pass.
 
 ### Snapshot path (first argument of `KeyringSession.load`)
@@ -213,7 +229,7 @@ This string is **not** a path to a file on disk on **any** OS (not the macOS Key
 | Different strings | Different isolated namespaces (e.g. per user or per “wallet”). |
 | Looks like a path, e.g. `'/wallet/main'` | Fine — purely a label; no requirement that the folder exists. |
 
-Use stable ASCII-ish identifiers for portability. The second argument is the Stronghold-compatible **password**: it is **not** used to unlock a snapshot file here; Rust **zeroizes** it. Use `''` or any placeholder if you are not migrating from Stronghold.
+Use stable ASCII-ish identifiers for portability. The second argument is the Stronghold-compatible **password**. It is **not verified**: any password opens any session path, and it protects nothing — access control comes from the OS store and from the plugin [permissions](#permissions). Rust **zeroizes** it right away. Use `''` or any placeholder if you are not migrating from Stronghold.
 
 ### Frontend — minimal flow
 
@@ -291,10 +307,12 @@ const generic = Location.generic('WALLET', 'seed.bin')
 const row = Location.counter('WALLET', 0)
 ```
 
+A counter location is stored under the text of its number: `Location.counter('WALLET', 7)` and `Location.generic('WALLET', '7')` are **the same record**. Do not mix counters and numeric record names in one vault.
+
 | `KeyringVault` method | IPC / behavior |
 |----------------------|----------------|
 | `insert(recordPath, secret)` | `save_secret` |
-| `remove(location)` | `remove_secret`: deletes `location`'s record (or counter) **in this vault**; the location's own vault name is ignored |
+| `remove(location)` | `remove_secret`: deletes `location`'s record (or counter) in the vault named **by the location** |
 | `generateSLIP10Seed(output, sizeBytes?)` | SLIP10Generate (`sizeBytes` 16..=64, default 32) → empty array |
 | `deriveSLIP10(chain, 'Seed' \| 'Key', src, output)` | SLIP10Derive → 32-byte chain code of the child key |
 | `recoverBIP39(mnemonic, output, passphrase?)` | BIP39Recover → empty array |
@@ -359,7 +377,7 @@ Bulk commands and imports take at most **256** items per call; an import is vali
 
 **Naming (application convention):** use `prefix.name` with a single dot — helpers [`join_prefix`](https://docs.rs/tauri-plugin-keyring-store/latest/tauri_plugin_keyring_store/fn.join_prefix.html) / [`split_prefixed`](https://docs.rs/tauri-plugin-keyring-store/latest/tauri_plugin_keyring_store/fn.split_prefixed.html) in Rust, and `joinKeyPrefix` / `splitKeyPrefix` in guest-js (see [Usage → Naming helpers](#naming-helpers)). The OS keyring still does **not** support listing by prefix; keep your own index of logical keys if needed.
 
-**Reserved accounts:** accounts starting with `kp:` hold session store records and vault keys; the password commands reject them, so the webview cannot read vault key material through `getPasswords`.
+**Reserved accounts:** accounts starting with `kp:` (in any letter case — Windows credential names ignore case) hold session store records and vault keys; the password commands reject them, so the webview cannot read vault key material through `getPasswords`.
 
 **Security — plaintext backup:** `export_passwords_plain` / `import_passwords_plain` move secrets **in the clear** across IPC to the webview. Use only in trusted UI flows, or prefer `export_passwords_encrypted` / disk encryption.
 

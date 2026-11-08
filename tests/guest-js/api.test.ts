@@ -85,4 +85,18 @@ describe('tauri-plugin-keyring-store-api', () => {
     expect(args('save_secret')).toMatchObject({ vault: [5], recordPath: 'rec', secret: [7, 8] })
     expect(loc.payload).toEqual({ vault: [3], record: 'r' })
   })
+
+  it('KeyringVault.remove deletes from the vault named in the location', async () => {
+    invokeMock.mockResolvedValue(null)
+    const api = await import('../../guest-js/index.ts')
+    const session = await api.KeyringSession.load('/p', '')
+    const vault = (await session.createClient('c')).getVault('this-vault')
+    await vault.remove(api.Location.generic('other', 'rec'))
+    await vault.remove(api.Location.counter([9], 7))
+    const calls = invokeMock.mock.calls.filter((c) => c[0] === 'plugin:keyring-store|remove_secret')
+    expect(calls.map((c) => c[1])).toEqual([
+      { snapshotPath: '/p', client: 'c', vault: 'other', recordPath: 'rec' },
+      { snapshotPath: '/p', client: 'c', vault: [9], recordPath: '7' },
+    ])
+  })
 })

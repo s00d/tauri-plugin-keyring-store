@@ -247,8 +247,13 @@ mod ipc_tests {
         assert_eq!(got, json!(["s1", null]));
 
         // Vault key material lives under `kp:` accounts: the password API must not reach it.
-        let err = call(&w, "get_passwords", json!({"accounts": ["kp:v1:x"]})).unwrap_err();
-        assert!(err.contains("reserved"), "{err}");
+        // In any letter case: Windows credential names are case-insensitive.
+        for acc in ["kp:v1:x", "KP:v1:x", "Kp:v1:x", " kP:x"] {
+            let err = call(&w, "get_passwords", json!({"accounts": [acc]})).unwrap_err();
+            assert!(err.contains("reserved"), "{acc}: {err}");
+            let set = json!({"entries": [{"account": acc, "secret": "x"}]});
+            assert!(call(&w, "set_passwords", set).is_err(), "{acc}");
+        }
 
         // Import validates every row before writing any of them.
         let backup = json!({"backup": {"formatVersion": 1, "entries": [

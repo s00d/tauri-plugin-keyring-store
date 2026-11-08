@@ -22,7 +22,7 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 
-use keyring_core::Entry;
+use keyring_core::{CredentialStore, Entry};
 use sha2::{Digest, Sha256};
 
 #[cfg(target_os = "ios")]
@@ -33,7 +33,7 @@ use crate::models::BytesDto;
 
 /// Prefix of the hashed accounts used for session store records and vault secrets.
 ///
-/// The IPC password commands refuse accounts with this prefix, so the webview cannot read
+/// The IPC password commands refuse accounts with this prefix in any letter case, so the webview cannot read
 /// vault key material (or overwrite store records) through `getPasswords` / `setPasswords`.
 pub const INTERNAL_ACCOUNT_PREFIX: &str = "kp:";
 
@@ -115,6 +115,7 @@ impl SessionRegistry {
 #[derive(Debug, Clone)]
 pub struct KeyringStore {
     service: String,
+    backend: Option<Arc<CredentialStore>>,
     #[cfg(target_os = "ios")]
     write_accessibility: WriteAccessibility,
 }
@@ -124,6 +125,7 @@ impl KeyringStore {
     pub fn new(service: impl Into<String>) -> Self {
         Self {
             service: service.into(),
+            backend: None,
             #[cfg(target_os = "ios")]
             write_accessibility: WriteAccessibility::default(),
         }
@@ -136,12 +138,25 @@ impl KeyringStore {
         self
     }
 
+    /// Uses `store` for this handle instead of the process-wide default keyring store, e.g.
+    /// `linux_keyutils_keyring_store::Store` (no prompts, no D-Bus) or a mock in tests.
+    /// The plugin from [`crate::init`] keeps using the default store.
+    pub fn with_store(mut self, store: Arc<CredentialStore>) -> Self {
+        self.backend = Some(store);
+        self
+    }
+
     /// Keyring **service** / namespace string passed to the native backend.
     pub fn service(&self) -> &str {
         &self.service
     }
 
     fn entry(&self, account: &str) -> Result<Entry> {
+        if let Some(store) = &self.backend {
+            return store
+                .build(&self.service, account, None)
+                .map_err(map_keyring_err);
+        }
         ensure_init().map_err(Error::Init)?;
         Entry::new(&self.service, account).map_err(map_keyring_err)
     }
@@ -149,6 +164,10 @@ impl KeyringStore {
     fn entry_for_write(&self, account: &str) -> Result<Entry> {
         #[cfg(target_os = "ios")]
         {
+            // The access-policy modifier is specific to the default iOS store.
+            if self.backend.is_some() {
+                return self.entry(account);
+            }
             ensure_init().map_err(Error::Init)?;
             let policy = self.write_accessibility.as_access_policy_modifier();
             let modifiers = HashMap::from([("access-policy", policy)]);
@@ -329,5 +348,21 @@ impl KeyringStore {
         let vd = digest16(vault.as_ref());
         let rd = digest16(record_path.as_ref());
         format!("kp:v1:{sd}:{cd}:v:{vd}:{rd}")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn with_store_uses_the_given_backend() {
+        let mock = keyring_core::mock::Store::new().unwrap();
+        let a = KeyringStore::new("svc").with_store(mock.clone());
+        let b = KeyringStore::new("svc").with_store(mock);
+        a.set_password("acc", "s").unwrap();
+        assert_eq!(b.get_password("acc").unwrap().as_deref(), Some("s"));
+        let other = KeyringStore::new("svc").with_store(keyring_core::mock::Store::new().unwrap());
+        assert_eq!(other.get_password("acc").unwrap(), None);
     }
 }
