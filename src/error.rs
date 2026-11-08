@@ -1,12 +1,15 @@
 //! Error types returned by the plugin (IPC-safe).
 
-use serde::{ser::Serializer, Serialize};
+use serde::{Serialize, ser::Serializer};
 
 /// Result alias using this crate’s [`Error`].
 pub type Result<T> = std::result::Result<T, Error>;
 
 /// Errors surfaced to the frontend and backend helpers (serializes as a plain string over IPC).
+///
+/// Messages never contain secret values (passwords, key material, mnemonic words).
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum Error {
     /// Stronghold-style session path was used before `initialize` completed for that path.
     #[error("session not initialized: {0}")]
@@ -17,6 +20,10 @@ pub enum Error {
     /// Platform backend could not be registered (e.g. missing OS APIs in doc builds).
     #[error("plugin initialization failed: {0}")]
     Init(String),
+    /// The OS denied access to the credential store (locked keyring, user cancelled the
+    /// system prompt, missing entitlement, …).
+    #[error("keyring access denied: {0}")]
+    NoStorageAccess(String),
     /// Wrapped error from [`keyring_core`] / native store.
     #[error("keyring error: {0}")]
     Keyring(String),

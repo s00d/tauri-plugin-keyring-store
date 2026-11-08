@@ -1,6 +1,9 @@
 name: CI
 
 on:
+  push:
+    branches: [main]
+  pull_request:
   workflow_dispatch:
 
 concurrency:
@@ -9,10 +12,14 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
+  # tests/keyring_live.rs must reach the real OS store here instead of skipping.
+  KEYRING_LIVE_REQUIRED: "1"
 
 jobs:
-  rust:
+  test:
+    name: test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
@@ -20,72 +27,100 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Linux dependencies
+      - name: Linux system deps (webkit for tauri, D-Bus + gnome-keyring for Secret Service)
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libglib2.0-dev libsecret-1-dev libdbus-1-dev pkg-config
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
-
-      - uses: Swatinem/rust-cache@v2
-
-      - name: fmt
-        run: cargo fmt --all -- --check
-
-      - name: clippy (all features)
-        run: cargo clippy --all-targets --all-features -- -D warnings
-
-      - name: clippy (no default features)
-        run: cargo clippy --all-targets --no-default-features -- -D warnings
-
-      - name: test (all features)
-        run: cargo test --all-features
-
-      - name: test (no default features)
-        run: cargo test --no-default-features
-
-  js:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: pnpm
-
-      - name: Install JS dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: build guest-js
-        run: pnpm run build
-
-      - name: vitest
-        run: pnpm test
-
-  example:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Linux dependencies
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libglib2.0-dev libsecret-1-dev libdbus-1-dev pkg-config
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev \
+            libdbus-1-dev pkg-config gnome-keyring dbus-x11
 
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
       - uses: Swatinem/rust-cache@v2
 
-      - name: cargo check example
-        run: cargo check --manifest-path examples/tauri-app/src-tauri/Cargo.toml
+      - name: Format
+        run: cargo fmt --all --check
+
+      - name: Clippy (all features)
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Clippy (no default features)
+        run: cargo clippy --all-targets --no-default-features -- -D warnings
+
+      - name: Rust tests (unit, IPC, live OS keyring)
+        if: runner.os != 'Linux'
+        run: |
+          cargo test --all-features
+          cargo test --no-default-features
+
+      # Headless runner: start a session bus with an unlocked gnome-keyring Secret Service.
+      # Compile first: keep the bus session short (a long build inside it once
+      # left the second run without a Secret Service reply).
+      - name: Rust tests (unit, IPC, live Secret Service)
+        if: runner.os == 'Linux'
+        run: |
+          cargo test --all-features --no-run
+          cargo test --no-default-features --no-run
+          dbus-run-session -- bash -ec '
+            echo -n ci-password | gnome-keyring-daemon --unlock --components=secrets
+            cargo test --all-features
+            cargo test --no-default-features
+          '
+
+      # pnpm version comes from package.json `packageManager`.
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - name: Build guest-js and check dist (publint, attw, smoke)
+        run: pnpm build
+      - name: guest-js tests
+        run: pnpm test
+
+  android-build:
+    name: build (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [aarch64-linux-android, x86_64-linux-android]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+      - uses: nttld/setup-ndk@v1
+        id: ndk
+        with:
+          ndk-version: r27c
+      - name: Build for Android (Keystore backend)
+        shell: bash
+        env:
+          NDK: ${{ steps.ndk.outputs.ndk-path }}
+        run: |
+          tb="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          triple="${{ matrix.target }}"
+          up=$(echo "$triple" | tr 'a-z-' 'A-Z_')
+          export CC_${triple//-/_}="$tb/${triple}24-clang"
+          export AR_${triple//-/_}="$tb/llvm-ar"
+          export CARGO_TARGET_${up}_LINKER="$tb/${triple}24-clang"
+          cargo build --target "$triple"
+
+  ios-build:
+    name: build (aarch64-apple-ios)
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios
+      - uses: Swatinem/rust-cache@v2
+      - name: Build for iOS (data-protection keychain backend)
+        run: cargo build --target aarch64-apple-ios

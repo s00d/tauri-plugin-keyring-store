@@ -1,23 +1,33 @@
 //! Tauri IPC handlers; mirror [`crate::store::KeyringStore`] for frontend access.
+//!
+//! Every keyring call runs on a blocking thread: OS stores may block for a long time (macOS
+//! keychain prompt, unlocking a Secret Service collection) and must not stall the async runtime.
 
 use std::path::{Path, PathBuf};
-use std::time::Duration;
+use std::sync::Arc;
 
-use tauri::{command, AppHandle, Manager, Runtime};
-use zeroize::Zeroize;
+use tauri::{State, command};
+use zeroize::{Zeroize, Zeroizing};
 
+use crate::Result;
 use crate::models::*;
 use crate::plugin::KeyringPlugin;
-use crate::store::KeyringStore;
-use crate::Result;
+use crate::store::{INTERNAL_ACCOUNT_PREFIX, KeyringStore};
 
-/// Max items per bulk / backup list (doS / IPC payload guard).
+/// Max items per bulk / backup list (DoS / IPC payload guard).
 const MAX_BULK_ITEMS: usize = 256;
 
 const BACKUP_FORMAT_VERSION: u32 = 1;
 
-fn normalize_account(account: String) -> crate::Result<String> {
-    let account = account.trim().to_owned();
+/// Runs keyring I/O off the async runtime.
+async fn blocking<T: Send + 'static>(f: impl FnOnce() -> Result<T> + Send + 'static) -> Result<T> {
+    tauri::async_runtime::spawn_blocking(f)
+        .await
+        .map_err(|e| crate::Error::Keyring(format!("keyring worker failed: {e}")))?
+}
+
+pub(crate) fn normalize_account(account: &str) -> Result<String> {
+    let account = account.trim();
     if account.is_empty() {
         return Err(crate::Error::Naming("account must not be empty".into()));
     }
@@ -26,10 +36,20 @@ fn normalize_account(account: String) -> crate::Result<String> {
             "account string too long (max 512)".into(),
         ));
     }
-    Ok(account)
+    if account.starts_with(INTERNAL_ACCOUNT_PREFIX) {
+        return Err(crate::Error::Naming(format!(
+            "accounts starting with '{INTERNAL_ACCOUNT_PREFIX}' are reserved for session records"
+        )));
+    }
+    Ok(account.to_owned())
 }
 
-fn ensure_bulk_len(n: usize) -> crate::Result<()> {
+fn normalize_accounts(accounts: &[String]) -> Result<Vec<String>> {
+    ensure_bulk_len(accounts.len())?;
+    accounts.iter().map(|a| normalize_account(a)).collect()
+}
+
+fn ensure_bulk_len(n: usize) -> Result<()> {
     if n > MAX_BULK_ITEMS {
         return Err(crate::Error::Naming(format!(
             "too many items (max {MAX_BULK_ITEMS})"
@@ -38,31 +58,35 @@ fn ensure_bulk_len(n: usize) -> crate::Result<()> {
     Ok(())
 }
 
-fn apply_plain_backup(store: &KeyringStore, backup: PasswordBackupPlainDto) -> crate::Result<()> {
+/// Validates the whole backup first, so a bad row never leaves a half-applied import.
+fn apply_plain_backup(store: &KeyringStore, backup: PasswordBackupPlainDto) -> Result<()> {
     if backup.format_version != BACKUP_FORMAT_VERSION {
         return Err(crate::Error::Encoding(format!(
             "unsupported backup format version {} (expected {BACKUP_FORMAT_VERSION})",
             backup.format_version
         )));
     }
-    for row in backup.entries {
-        if let Some(secret) = row.secret {
-            let account = normalize_account(row.account)?;
-            store.set_password(&account, &secret)?;
-        }
+    ensure_bulk_len(backup.entries.len())?;
+    let rows = backup
+        .entries
+        .into_iter()
+        .filter_map(|row| {
+            let secret = Zeroizing::new(row.secret?);
+            Some(normalize_account(&row.account).map(|a| (a, secret)))
+        })
+        .collect::<Result<Vec<_>>>()?;
+    for (account, secret) in rows {
+        store.set_password(&account, &secret)?;
     }
     Ok(())
 }
 
-async fn collect_plain_backup<R: Runtime>(
-    app: &AppHandle<R>,
+fn collect_plain_backup(
+    store: &KeyringStore,
     accounts: Vec<String>,
 ) -> Result<PasswordBackupPlainDto> {
-    ensure_bulk_len(accounts.len())?;
-    let store = app.state::<KeyringPlugin>().store.clone();
     let mut entries = Vec::with_capacity(accounts.len());
-    for a in accounts {
-        let account = normalize_account(a)?;
+    for account in accounts {
         let secret = store.get_password(&account)?;
         entries.push(PasswordBackupEntryDto { account, secret });
     }
@@ -72,285 +96,283 @@ async fn collect_plain_backup<R: Runtime>(
     })
 }
 
-#[command]
-pub(crate) async fn get_passwords<R: Runtime>(
-    app: AppHandle<R>,
-    accounts: Vec<String>,
-) -> Result<Vec<Option<String>>> {
-    ensure_bulk_len(accounts.len())?;
-    let store = app.state::<KeyringPlugin>().store.clone();
-    let mut out = Vec::with_capacity(accounts.len());
-    for a in accounts {
-        let account = normalize_account(a)?;
-        out.push(store.get_password(&account)?);
-    }
-    Ok(out)
+fn store_of(state: &State<'_, KeyringPlugin>) -> Arc<KeyringStore> {
+    state.store.clone()
 }
 
 #[command]
-pub(crate) async fn set_passwords<R: Runtime>(
-    app: AppHandle<R>,
+pub(crate) async fn get_passwords(
+    state: State<'_, KeyringPlugin>,
+    accounts: Vec<String>,
+) -> Result<Vec<Option<String>>> {
+    let accounts = normalize_accounts(&accounts)?;
+    let store = store_of(&state);
+    blocking(move || accounts.iter().map(|a| store.get_password(a)).collect()).await
+}
+
+#[command]
+pub(crate) async fn set_passwords(
+    state: State<'_, KeyringPlugin>,
     entries: Vec<PasswordEntryDto>,
 ) -> Result<()> {
     ensure_bulk_len(entries.len())?;
-    let store = app.state::<KeyringPlugin>().store.clone();
-    for e in entries {
-        let account = normalize_account(e.account)?;
-        store.set_password(&account, &e.secret)?;
-    }
-    Ok(())
+    let rows = entries
+        .into_iter()
+        .map(|e| Ok((normalize_account(&e.account)?, Zeroizing::new(e.secret))))
+        .collect::<Result<Vec<_>>>()?;
+    let store = store_of(&state);
+    blocking(move || {
+        rows.iter()
+            .try_for_each(|(account, secret)| store.set_password(account, secret))
+    })
+    .await
 }
 
 #[command]
-pub(crate) async fn delete_passwords<R: Runtime>(
-    app: AppHandle<R>,
+pub(crate) async fn delete_passwords(
+    state: State<'_, KeyringPlugin>,
     accounts: Vec<String>,
 ) -> Result<()> {
-    ensure_bulk_len(accounts.len())?;
-    let store = app.state::<KeyringPlugin>().store.clone();
-    for a in accounts {
-        let account = normalize_account(a)?;
-        store.delete(&account)?;
-    }
-    Ok(())
+    let accounts = normalize_accounts(&accounts)?;
+    let store = store_of(&state);
+    blocking(move || accounts.iter().try_for_each(|a| store.delete(a))).await
 }
 
 #[command]
-pub(crate) async fn password_exists<R: Runtime>(
-    app: AppHandle<R>,
+pub(crate) async fn password_exists(
+    state: State<'_, KeyringPlugin>,
     account: String,
 ) -> Result<bool> {
-    let account = normalize_account(account)?;
-    let store = app.state::<KeyringPlugin>().store.clone();
-    store.exists_nonempty(&account)
+    let account = normalize_account(&account)?;
+    let store = store_of(&state);
+    blocking(move || store.exists_nonempty(&account)).await
 }
 
 #[command]
-pub(crate) async fn export_passwords_plain<R: Runtime>(
-    app: AppHandle<R>,
+pub(crate) async fn export_passwords_plain(
+    state: State<'_, KeyringPlugin>,
     accounts: Vec<String>,
 ) -> Result<PasswordBackupPlainDto> {
-    collect_plain_backup(&app, accounts).await
+    let accounts = normalize_accounts(&accounts)?;
+    let store = store_of(&state);
+    blocking(move || collect_plain_backup(&store, accounts)).await
 }
 
 #[command]
-pub(crate) async fn import_passwords_plain<R: Runtime>(
-    app: AppHandle<R>,
+pub(crate) async fn import_passwords_plain(
+    state: State<'_, KeyringPlugin>,
     backup: PasswordBackupPlainDto,
 ) -> Result<()> {
-    let store = app.state::<KeyringPlugin>().store.clone();
-    apply_plain_backup(store.as_ref(), backup)
+    let store = store_of(&state);
+    blocking(move || apply_plain_backup(&store, backup)).await
 }
 
 #[command]
-pub(crate) async fn export_passwords_encrypted<R: Runtime>(
-    app: AppHandle<R>,
+pub(crate) async fn export_passwords_encrypted(
+    state: State<'_, KeyringPlugin>,
     accounts: Vec<String>,
     passphrase: String,
 ) -> Result<PasswordBackupEncryptedDto> {
-    let plain = collect_plain_backup(&app, accounts).await?;
-    let mut pw = passphrase.into_bytes();
-    let json = serde_json::to_vec(&plain).map_err(|e| crate::Error::Encoding(e.to_string()))?;
-    let out = crate::backup_crypto::encrypt_plain_bytes(&json, &pw);
-    pw.zeroize();
-    out
+    let passphrase = Zeroizing::new(passphrase);
+    let accounts = normalize_accounts(&accounts)?;
+    let store = store_of(&state);
+    blocking(move || {
+        let plain = collect_plain_backup(&store, accounts)?;
+        let json = Zeroizing::new(
+            serde_json::to_vec(&plain).map_err(|e| crate::Error::Encoding(e.to_string()))?,
+        );
+        for mut e in plain.entries {
+            e.secret.zeroize();
+        }
+        crate::backup_crypto::encrypt_plain_bytes(&json, passphrase.as_bytes())
+    })
+    .await
 }
 
 #[command]
-pub(crate) async fn import_passwords_encrypted<R: Runtime>(
-    app: AppHandle<R>,
+pub(crate) async fn import_passwords_encrypted(
+    state: State<'_, KeyringPlugin>,
     backup: PasswordBackupEncryptedDto,
     passphrase: String,
 ) -> Result<()> {
-    let mut pw = passphrase.into_bytes();
-    let plain = crate::backup_crypto::decrypt_to_plain(&backup, &pw)?;
-    pw.zeroize();
-    let backup_plain: PasswordBackupPlainDto =
-        serde_json::from_slice(&plain).map_err(|e| crate::Error::Encoding(e.to_string()))?;
-    let store = app.state::<KeyringPlugin>().store.clone();
-    apply_plain_backup(store.as_ref(), backup_plain)
+    let passphrase = Zeroizing::new(passphrase);
+    let store = store_of(&state);
+    blocking(move || {
+        let plain = crate::backup_crypto::decrypt_to_plain(&backup, passphrase.as_bytes())?;
+        let backup: PasswordBackupPlainDto =
+            serde_json::from_slice(&plain).map_err(|e| crate::Error::Encoding(e.to_string()))?;
+        apply_plain_backup(&store, backup)
+    })
+    .await
 }
 
 #[command]
-pub(crate) async fn ping<R: Runtime>(
-    _app: AppHandle<R>,
-    payload: PingRequest,
-) -> Result<PingResponse> {
+pub(crate) async fn ping(payload: PingRequest) -> Result<PingResponse> {
     Ok(PingResponse {
         value: payload.value,
     })
 }
 
+/// The password is accepted for Stronghold API parity only: secrets are protected by the OS
+/// store, so it is wiped immediately and never stored or compared.
 #[command]
-pub(crate) async fn initialize<R: Runtime>(
-    app: AppHandle<R>,
+pub(crate) async fn initialize(
+    state: State<'_, KeyringPlugin>,
     snapshot_path: PathBuf,
-    mut password: String,
+    password: String,
 ) -> Result<()> {
-    password.zeroize();
-    let plugin = app.state::<KeyringPlugin>();
-    let path = snapshot_path.to_string_lossy().into_owned();
-    plugin.sessions.insert(path);
+    drop(Zeroizing::new(password));
+    state
+        .sessions
+        .insert(snapshot_path.to_string_lossy().into_owned());
     Ok(())
 }
 
 #[command]
-pub(crate) async fn destroy<R: Runtime>(app: AppHandle<R>, snapshot_path: PathBuf) -> Result<()> {
-    let plugin = app.state::<KeyringPlugin>();
-    let path = snapshot_path.to_string_lossy();
-    plugin.sessions.remove(path.as_ref());
+pub(crate) async fn destroy(state: State<'_, KeyringPlugin>, snapshot_path: PathBuf) -> Result<()> {
+    state.sessions.remove(&snapshot_path.to_string_lossy());
     Ok(())
 }
 
 #[command]
-pub(crate) async fn save<R: Runtime>(_app: AppHandle<R>, _snapshot_path: PathBuf) -> Result<()> {
-    Ok(())
+pub(crate) async fn save(state: State<'_, KeyringPlugin>, snapshot_path: PathBuf) -> Result<()> {
+    require_session(&state, &snapshot_path).map(drop)
 }
 
 #[command]
-pub(crate) async fn create_client<R: Runtime>(
-    app: AppHandle<R>,
-    snapshot_path: PathBuf,
-    #[allow(unused_variables)] client: BytesDto,
-) -> Result<()> {
-    let plugin = app.state::<KeyringPlugin>();
-    require_session(plugin.inner(), &snapshot_path)?;
-    Ok(())
-}
-
-#[command]
-pub(crate) async fn load_client<R: Runtime>(
-    app: AppHandle<R>,
+pub(crate) async fn create_client(
+    state: State<'_, KeyringPlugin>,
     snapshot_path: PathBuf,
     #[allow(unused_variables)] client: BytesDto,
 ) -> Result<()> {
-    let plugin = app.state::<KeyringPlugin>();
-    require_session(plugin.inner(), &snapshot_path)?;
-    Ok(())
+    require_session(&state, &snapshot_path).map(drop)
 }
 
 #[command]
-pub(crate) async fn get_store_record<R: Runtime>(
-    app: AppHandle<R>,
+pub(crate) async fn load_client(
+    state: State<'_, KeyringPlugin>,
+    snapshot_path: PathBuf,
+    #[allow(unused_variables)] client: BytesDto,
+) -> Result<()> {
+    require_session(&state, &snapshot_path).map(drop)
+}
+
+#[command]
+pub(crate) async fn get_store_record(
+    state: State<'_, KeyringPlugin>,
     snapshot_path: PathBuf,
     client: BytesDto,
-    key: String,
+    key: BytesDto,
 ) -> Result<Option<Vec<u8>>> {
-    let plugin = app.state::<KeyringPlugin>();
-    require_session(plugin.inner(), &snapshot_path)?;
-    let store = plugin.store.as_ref();
-    let account = store.account_store_key(&snapshot_path.to_string_lossy(), &client, &key);
-    store.get_bytes(&account)
+    let snap = require_session(&state, &snapshot_path)?;
+    let store = store_of(&state);
+    blocking(move || store.get_bytes(&store.account_store_key(&snap, &client, &key))).await
 }
 
+/// `lifetime` is accepted for Stronghold parity and ignored: OS stores have no expiry.
 #[command]
-pub(crate) async fn save_store_record<R: Runtime>(
-    app: AppHandle<R>,
+pub(crate) async fn save_store_record(
+    state: State<'_, KeyringPlugin>,
     snapshot_path: PathBuf,
     client: BytesDto,
-    key: String,
+    key: BytesDto,
     value: Vec<u8>,
     #[allow(unused_variables)] lifetime: Option<DurationDto>,
 ) -> Result<Option<Vec<u8>>> {
-    let _ = lifetime.map(Duration::from);
-    let plugin = app.state::<KeyringPlugin>();
-    require_session(plugin.inner(), &snapshot_path)?;
-    let store = plugin.store.as_ref();
-    let account = store.account_store_key(&snapshot_path.to_string_lossy(), &client, &key);
-    let prev = store.get_bytes(&account)?;
-    store.set_bytes(&account, &value)?;
-    Ok(prev)
+    let snap = require_session(&state, &snapshot_path)?;
+    let value = Zeroizing::new(value);
+    let store = store_of(&state);
+    blocking(move || {
+        let account = store.account_store_key(&snap, &client, &key);
+        let prev = store.get_bytes(&account)?;
+        store.set_bytes(&account, &value)?;
+        Ok(prev)
+    })
+    .await
 }
 
 #[command]
-pub(crate) async fn remove_store_record<R: Runtime>(
-    app: AppHandle<R>,
+pub(crate) async fn remove_store_record(
+    state: State<'_, KeyringPlugin>,
     snapshot_path: PathBuf,
     client: BytesDto,
-    key: String,
+    key: BytesDto,
 ) -> Result<Option<Vec<u8>>> {
-    let plugin = app.state::<KeyringPlugin>();
-    require_session(plugin.inner(), &snapshot_path)?;
-    let store = plugin.store.as_ref();
-    let account = store.account_store_key(&snapshot_path.to_string_lossy(), &client, &key);
-    let prev = store.get_bytes(&account)?;
-    store.delete(&account)?;
-    Ok(prev)
+    let snap = require_session(&state, &snapshot_path)?;
+    let store = store_of(&state);
+    blocking(move || {
+        let account = store.account_store_key(&snap, &client, &key);
+        let prev = store.get_bytes(&account)?;
+        store.delete(&account)?;
+        Ok(prev)
+    })
+    .await
 }
 
 #[command]
-pub(crate) async fn save_secret<R: Runtime>(
-    app: AppHandle<R>,
+pub(crate) async fn save_secret(
+    state: State<'_, KeyringPlugin>,
     snapshot_path: PathBuf,
     client: BytesDto,
     vault: BytesDto,
     record_path: BytesDto,
     secret: Vec<u8>,
 ) -> Result<()> {
-    let plugin = app.state::<KeyringPlugin>();
-    require_session(plugin.inner(), &snapshot_path)?;
-    let store = plugin.store.as_ref();
-    let account = store.account_vault_record(
-        &snapshot_path.to_string_lossy(),
-        &client,
-        &vault,
-        &record_path,
-    );
-    store.set_bytes(&account, &secret)
+    let snap = require_session(&state, &snapshot_path)?;
+    let secret = Zeroizing::new(secret);
+    let store = store_of(&state);
+    blocking(move || {
+        let account = store.account_vault_record(&snap, &client, &vault, &record_path);
+        store.set_bytes(&account, &secret)
+    })
+    .await
 }
 
 #[command]
-pub(crate) async fn remove_secret<R: Runtime>(
-    app: AppHandle<R>,
+pub(crate) async fn remove_secret(
+    state: State<'_, KeyringPlugin>,
     snapshot_path: PathBuf,
     client: BytesDto,
     vault: BytesDto,
     record_path: BytesDto,
 ) -> Result<()> {
-    let plugin = app.state::<KeyringPlugin>();
-    require_session(plugin.inner(), &snapshot_path)?;
-    let store = plugin.store.as_ref();
-    let account = store.account_vault_record(
-        &snapshot_path.to_string_lossy(),
-        &client,
-        &vault,
-        &record_path,
-    );
-    store.delete(&account)
+    let snap = require_session(&state, &snapshot_path)?;
+    let store = store_of(&state);
+    blocking(move || {
+        store.delete(&store.account_vault_record(&snap, &client, &vault, &record_path))
+    })
+    .await
 }
 
 #[cfg(feature = "crypto")]
 #[command]
-pub(crate) async fn execute_procedure<R: Runtime>(
-    app: AppHandle<R>,
+pub(crate) async fn execute_procedure(
+    state: State<'_, KeyringPlugin>,
     snapshot_path: PathBuf,
     client: BytesDto,
     procedure: ProcedureDto,
 ) -> Result<Vec<u8>> {
-    let plugin = app.state::<KeyringPlugin>();
-    require_session(plugin.inner(), &snapshot_path)?;
-    let store = plugin.store.as_ref();
-    crate::crypto::execute_procedure(store, &snapshot_path.to_string_lossy(), &client, procedure)
+    let snap = require_session(&state, &snapshot_path)?;
+    let store = store_of(&state);
+    blocking(move || crate::crypto::execute_procedure(&store, &snap, &client, procedure)).await
 }
 
 #[cfg(not(feature = "crypto"))]
 #[command]
-pub(crate) async fn execute_procedure<R: Runtime>(
-    _app: AppHandle<R>,
-    _snapshot_path: PathBuf,
-    _client: BytesDto,
-    _procedure: ProcedureDto,
+pub(crate) async fn execute_procedure(
+    #[allow(unused_variables)] procedure: ProcedureDto,
 ) -> Result<Vec<u8>> {
     Err(crate::Error::Crypto(
         "tauri-plugin-keyring-store was built without the `crypto` feature".into(),
     ))
 }
 
-fn require_session(plugin: &KeyringPlugin, snapshot: &Path) -> Result<()> {
-    let s = snapshot.to_string_lossy();
-    if plugin.sessions.contains(s.as_ref()) {
-        Ok(())
+/// Returns the session id for `snapshot` if `initialize` was called for it.
+fn require_session(state: &KeyringPlugin, snapshot: &Path) -> Result<String> {
+    let s = snapshot.to_string_lossy().into_owned();
+    if state.sessions.contains(&s) {
+        Ok(s)
     } else {
-        Err(crate::Error::SessionNotInitialized(s.into_owned()))
+        Err(crate::Error::SessionNotInitialized(s))
     }
 }

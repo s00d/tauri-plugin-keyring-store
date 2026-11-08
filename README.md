@@ -52,7 +52,12 @@ Store secrets and wallet-style procedures using the **OS credential store** (mac
 | Linux | Secret Service (DBus; `crypto-rust` — no host OpenSSL required to **build**) |
 | Android | Android Keystore + SharedPreferences |
 
-Linux desktops need a Secret Service (e.g. GNOME Keyring / KWallet). Headless CI often has no user session — avoid relying on the live keyring there (see [Testing](#testing)). On Android, transitive deps may pull OpenSSL; your app may need `openssl-sys` with `vendored` for cross-builds (see Subly-style setups).
+Requires Rust **1.88+**.
+
+- **Linux**: needs a running Secret Service (GNOME Keyring, KWallet, KeePassXC…) and `libdbus-1-dev` + `pkg-config` to build. Headless machines can start one with `dbus-run-session` + `gnome-keyring-daemon --unlock` (that is what CI does, see [Testing](#testing)).
+- **Windows**: Credential Manager limits a secret to **2560 bytes**. Store records and vault secrets are Base64-encoded, so keep their raw size under ~1.9 KB there.
+- **iOS**: the data-protection keychain needs a signed app (an `application-identifier` entitlement). Device builds and `tauri ios dev` (signs with "Sign to Run Locally") have it; `tauri ios build --target aarch64-sim` builds **unsigned** and every call fails with `A required entitlement is not present`.
+- **Android**: the store is created from the activity context that Tauri/tao registers with `ndk-context`; no extra setup.
 
 ---
 
@@ -87,13 +92,13 @@ cargo add tauri-plugin-keyring-store
 Or in `Cargo.toml`:
 
 ```toml
-tauri-plugin-keyring-store = "0.1.5"
+tauri-plugin-keyring-store = "0.2"
 ```
 
 Disable the SLIP10/BIP39/Ed25519 stack (storage + backup IPC only):
 
 ```toml
-tauri-plugin-keyring-store = { version = "0.1.5", default-features = false }
+tauri-plugin-keyring-store = { version = "0.2", default-features = false }
 ```
 
 ### Manual — JavaScript
@@ -235,12 +240,14 @@ const row = Location.counter('WALLET', 0)
 |----------------------|----------------|
 | `insert(recordPath, secret)` | `save_secret` |
 | `remove(location)` | `remove_secret` (pass `Location.generic` or `Location.counter`) |
-| `generateSLIP10Seed(output, sizeBytes?)` | `execute_procedure` SLIP10Generate |
-| `deriveSLIP10(chain, 'Seed' \| 'Key', src, output)` | SLIP10Derive |
-| `recoverBIP39(mnemonic, output, passphrase?)` | BIP39Recover |
-| `generateBIP39(output, passphrase?)` | BIP39Generate |
-| `getEd25519PublicKey(privateKeyLocation)` | PublicKey (Ed25519) |
-| `signEd25519(privateKeyLocation, msg)` | Ed25519Sign (`msg` is UTF-8) |
+| `generateSLIP10Seed(output, sizeBytes?)` | SLIP10Generate (`sizeBytes` 16..=64, default 32) → empty array |
+| `deriveSLIP10(chain, 'Seed' \| 'Key', src, output)` | SLIP10Derive → 32-byte chain code of the child key |
+| `recoverBIP39(mnemonic, output, passphrase?)` | BIP39Recover → empty array |
+| `generateBIP39(output, passphrase?)` | BIP39Generate → 24-word mnemonic as UTF-8 bytes (`new TextDecoder().decode(...)`) for the user to back up |
+| `getEd25519PublicKey(privateKeyLocation)` | PublicKey (Ed25519) → 32-byte public key |
+| `signEd25519(privateKeyLocation, msg)` | Ed25519Sign (`msg` is UTF-8) → 64-byte signature |
+
+Private keys never leave Rust: procedures return only public data (or the new mnemonic), the same as Stronghold. Ids (`client`, vault, record, store key) may be strings or bytes (`Uint8Array`, `ArrayBuffer`, `number[]`); values may be `number[]` or `Uint8Array`.
 
 ```typescript
 import { KeyringSession, Location } from 'tauri-plugin-keyring-store-api'
@@ -291,6 +298,8 @@ Raw **account** strings are the OS keyring entry names under your app **service*
 
 **Naming (application convention):** use `prefix.name` with a single dot — helpers [`join_prefix`](https://docs.rs/tauri-plugin-keyring-store/latest/tauri_plugin_keyring_store/fn.join_prefix.html) / [`split_prefixed`](https://docs.rs/tauri-plugin-keyring-store/latest/tauri_plugin_keyring_store/fn.split_prefixed.html) in Rust, and `joinKeyPrefix` / `splitKeyPrefix` in guest-js (see [Usage → Naming helpers](#naming-helpers)). The OS keyring still does **not** support listing by prefix; keep your own index of logical keys if needed.
 
+**Reserved accounts:** accounts starting with `kp:` hold session store records and vault keys; the password commands reject them, so the webview cannot read vault key material through `getPasswords`.
+
 **Security — plaintext backup:** `export_passwords_plain` / `import_passwords_plain` move secrets **in the clear** across IPC to the webview. Use only in trusted UI flows, or prefer `export_passwords_encrypted` / disk encryption.
 
 ### Guest-js examples
@@ -337,6 +346,8 @@ await deletePasswords([account])
 
 Use `keyring-store:default` or granular `keyring-store:allow-*` (see [`permissions/default.toml`](permissions/default.toml)). Commands: `plugin:keyring-store|<command>`.
 
+`default` allows every command. Any window holding `allow-get-passwords` can read every secret under your service, and the export commands add nothing beyond that, so grant the plugin only to windows that load your own code (never remote content). Windows that only need vault signing can get just `allow-initialize`, `allow-create-client` / `allow-load-client` and `allow-execute-procedure`.
+
 ---
 
 ## Relationship to `tauri-plugin-stronghold`
@@ -344,7 +355,7 @@ Use `keyring-store:default` or granular `keyring-store:allow-*` (see [`permissio
 | Stronghold | This plugin |
 |------------|-------------|
 | Password-derived snapshot | No snapshot file; OS stores secrets |
-| `save()` writes snapshot | `save()` is a **no-op** (compat) |
+| `save()` writes snapshot | `save()` writes nothing (entries are written immediately); still requires a loaded session |
 | Procedures in Stronghold VM | In-process crypto; outputs in keyring |
 
 ---
@@ -372,8 +383,9 @@ rsvg-convert -w 128 -h 128 assets/docs-logo.svg -o assets/docs-logo.png
 
 ## Testing
 
-- **Rust**: `cargo test` — deterministic account-key tests and serde roundtrips do not need D-Bus. Tests that call the real OS store are `#[ignore]`; run locally where Secret Service / Keychain is available.
-- **JavaScript**: `pnpm test` (Vitest) mocks `@tauri-apps/api/core`.
+- **Rust**: `cargo test` — unit and IPC tests (through `tauri::test`) run against keyring-core's in-memory mock store. `tests/keyring_live.rs` writes, reads and deletes one entry in the **real** OS store under a unique service name and always cleans up; it skips itself when no store is reachable, unless `KEYRING_LIVE_REQUIRED=1` (set in CI).
+- **Linux headless**: `dbus-run-session -- bash -c 'echo -n pw | gnome-keyring-daemon --unlock --components=secrets; cargo test'`.
+- **JavaScript**: `pnpm test` (Vitest) mocks `@tauri-apps/api/core`; `pnpm build` also runs `publint --strict`, `attw` and an ESM/CJS export smoke check.
 
 ---
 

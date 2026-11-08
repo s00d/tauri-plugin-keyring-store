@@ -27,6 +27,21 @@ export type StoreKey =
   | ArrayLike<number>
   | ArrayBuffer
 
+/** Bytes accepted for record values and secrets. */
+export type Bytes = number[] | Uint8Array
+
+type BytesLike = string | Iterable<number> | ArrayLike<number> | ArrayBuffer
+
+/**
+ * IPC args are JSON: a `Uint8Array` / `ArrayBuffer` / `Set` would arrive as `{}` or an
+ * index-keyed object, so binary ids are sent as plain number arrays (Rust `BytesDto`).
+ */
+function toBytesDto(v: BytesLike): string | number[] {
+  if (typeof v === 'string') return v
+  if (v instanceof ArrayBuffer) return Array.from(new Uint8Array(v))
+  return Array.from(v as ArrayLike<number>)
+}
+
 /** Duration hint (ignored for OS keyring persistence; kept for Stronghold API compatibility). */
 export interface Duration {
   secs: number
@@ -44,14 +59,14 @@ export class Location {
 
   static generic(vault: VaultPath, record: RecordPath): Location {
     return new Location('Generic', {
-      vault,
-      record
+      vault: toBytesDto(vault),
+      record: toBytesDto(record)
     })
   }
 
   static counter(vault: VaultPath, counter: number): Location {
     return new Location('Counter', {
-      vault,
+      vault: toBytesDto(vault),
       counter
     })
   }
@@ -64,6 +79,7 @@ class ProcedureExecutor {
     this.procedureArgs = procedureArgs
   }
 
+  /** Generates a SLIP10 master key into `outputLocation` (`sizeBytes`: 16..=64, default 32). Resolves to an empty array: key material never leaves Rust. */
   async generateSLIP10Seed(
     outputLocation: Location,
     sizeBytes?: number
@@ -80,6 +96,7 @@ class ProcedureExecutor {
     }).then((n) => Uint8Array.from(n))
   }
 
+  /** Derives a hardened child key into `outputLocation`; resolves to its 32-byte chain code. */
   async deriveSLIP10(
     chain: number[],
     source: 'Seed' | 'Key',
@@ -102,6 +119,7 @@ class ProcedureExecutor {
     }).then((n) => Uint8Array.from(n))
   }
 
+  /** Restores a BIP39 mnemonic into `outputLocation`; resolves to an empty array. */
   async recoverBIP39(
     mnemonic: string,
     outputLocation: Location,
@@ -120,6 +138,10 @@ class ProcedureExecutor {
     }).then((n) => Uint8Array.from(n))
   }
 
+  /**
+   * Generates a 24-word English mnemonic and stores its SLIP10 master key in `outputLocation`.
+   * Resolves to the mnemonic as UTF-8 bytes (`new TextDecoder().decode(bytes)`) so the user can back it up.
+   */
   async generateBIP39(
     outputLocation: Location,
     passphrase?: string
@@ -198,21 +220,18 @@ export class KeyringStoreView {
   async get(key: StoreKey): Promise<Uint8Array | null> {
     return await invoke<number[] | null>('plugin:keyring-store|get_store_record', {
       snapshotPath: this.path,
-      client: this.client,
-      key
+      client: toBytesDto(this.client),
+      key: toBytesDto(key)
     }).then((v) => v && Uint8Array.from(v))
   }
 
-  async insert(
-    key: StoreKey,
-    value: number[],
-    lifetime?: Duration
-  ): Promise<void> {
+  /** `lifetime` is accepted for Stronghold parity and ignored (OS stores have no expiry). */
+  async insert(key: StoreKey, value: Bytes, lifetime?: Duration): Promise<void> {
     await invoke('plugin:keyring-store|save_store_record', {
       snapshotPath: this.path,
-      client: this.client,
-      key,
-      value,
+      client: toBytesDto(this.client),
+      key: toBytesDto(key),
+      value: Array.from(value),
       lifetime
     })
   }
@@ -222,8 +241,8 @@ export class KeyringStoreView {
       'plugin:keyring-store|remove_store_record',
       {
         snapshotPath: this.path,
-        client: this.client,
-        key
+        client: toBytesDto(this.client),
+        key: toBytesDto(key)
       }
     ).then((v) => v && Uint8Array.from(v))
   }
@@ -238,34 +257,33 @@ export class KeyringVault extends ProcedureExecutor {
   constructor(path: string, client: ClientPath, name: VaultPath) {
     super({
       snapshotPath: path,
-      client,
-      vault: name
+      client: toBytesDto(client)
     })
     this.path = path
     this.client = client
     this.name = name
   }
 
-  async insert(recordPath: RecordPath, secret: number[]): Promise<void> {
+  async insert(recordPath: RecordPath, secret: Bytes): Promise<void> {
     await invoke('plugin:keyring-store|save_secret', {
       snapshotPath: this.path,
-      client: this.client,
-      vault: this.name,
-      recordPath,
-      secret
+      client: toBytesDto(this.client),
+      vault: toBytesDto(this.name),
+      recordPath: toBytesDto(recordPath),
+      secret: Array.from(secret)
     })
   }
 
   async remove(location: Location): Promise<void> {
     const recordPath =
       location.type === 'Generic'
-        ? (location.payload as { record: RecordPath }).record
+        ? toBytesDto((location.payload as { record: RecordPath }).record)
         : String((location.payload as { counter: number }).counter)
 
     await invoke('plugin:keyring-store|remove_secret', {
       snapshotPath: this.path,
-      client: this.client,
-      vault: this.name,
+      client: toBytesDto(this.client),
+      vault: toBytesDto(this.name),
       recordPath
     })
   }
@@ -299,7 +317,7 @@ export class KeyringSession {
   async loadClient(client: ClientPath): Promise<KeyringClient> {
     await invoke('plugin:keyring-store|load_client', {
       snapshotPath: this.path,
-      client
+      client: toBytesDto(client)
     })
     return new KeyringClient(this.path, client)
   }
@@ -307,12 +325,12 @@ export class KeyringSession {
   async createClient(client: ClientPath): Promise<KeyringClient> {
     await invoke('plugin:keyring-store|create_client', {
       snapshotPath: this.path,
-      client
+      client: toBytesDto(client)
     })
     return new KeyringClient(this.path, client)
   }
 
-  /** No-op on OS keyring (included for Stronghold parity). */
+  /** No-op on OS keyring (writes are immediate); fails if the session is not loaded, like Stronghold. */
   async save(): Promise<void> {
     await invoke('plugin:keyring-store|save', {
       snapshotPath: this.path
@@ -355,7 +373,10 @@ export interface PasswordBackupEncryptedDto {
   ciphertext: string
 }
 
-/** Read many UTF-8 secrets by raw account string (order preserved). */
+/**
+ * Read many UTF-8 secrets by raw account string (order preserved, `null` = missing).
+ * Accounts starting with `kp:` are reserved for session records and rejected.
+ */
 export async function getPasswords(
   accounts: string[]
 ): Promise<(string | null)[]> {

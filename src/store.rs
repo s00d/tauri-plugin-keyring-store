@@ -11,7 +11,7 @@
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! let store = KeyringStore::new("com.example.app");
 //! let client = BytesDto::Text("my-client".into());
-//! let account = store.account_store_key("/data/main", &client, "settings.json");
+//! let account = store.account_store_key("/data/main", &client, b"settings.json");
 //! store.set_bytes(&account, b"{\"theme\":\"dark\"}")?;
 //! # Ok(())
 //! # }
@@ -26,6 +26,12 @@ use sha2::{Digest, Sha256};
 use crate::backend::{ensure_init, map_keyring_err};
 use crate::error::{Error, Result};
 use crate::models::BytesDto;
+
+/// Prefix of the hashed accounts used for session store records and vault secrets.
+///
+/// The IPC password commands refuse accounts with this prefix, so the webview cannot read
+/// vault key material (or overwrite store records) through `getPasswords` / `setPasswords`.
+pub const INTERNAL_ACCOUNT_PREFIX: &str = "kp:";
 
 fn digest16(data: &[u8]) -> String {
     let mut h = Sha256::new();
@@ -79,7 +85,7 @@ impl KeyringStore {
 
     fn entry(&self, account: &str) -> Result<Entry> {
         ensure_init().map_err(Error::Init)?;
-        Entry::new(&self.service, account).map_err(|e| Error::Keyring(e.to_string()))
+        Entry::new(&self.service, account).map_err(map_keyring_err)
     }
 
     /// Persists a UTF-8 secret (use [`Self::set_bytes`] for arbitrary bytes).
@@ -164,16 +170,17 @@ impl KeyringStore {
         format!("kp:v1:{sd}:{cd}:x:{xd}")
     }
 
-    /// Account key for a JSON **store record** (`store_key` is a logical filename).
+    /// Account key for a **store record** (`store_key` is the logical key as bytes; a text key
+    /// hashes the same as its UTF-8 bytes).
     pub fn account_store_key(
         &self,
         snapshot_path: &str,
         client: &BytesDto,
-        store_key: &str,
+        store_key: impl AsRef<[u8]>,
     ) -> String {
         let sd = digest16(snapshot_path.as_bytes());
         let cd = digest16(client.as_ref());
-        let kd = digest16(store_key.as_bytes());
+        let kd = digest16(store_key.as_ref());
         format!("kp:v1:{sd}:{cd}:st:{kd}")
     }
 

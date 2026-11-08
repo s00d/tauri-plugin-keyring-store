@@ -1,48 +1,7 @@
 //! Example app: demonstrates **Rust-first** keyring access via [`tauri_plugin_keyring_store::KeyringExt`]
-//! plus optional guest API flows from the webview.
+//! plus guest API flows from the webview (password API, sessions, vault).
 
 use tauri_plugin_keyring_store::{BytesDto, KeyringExt};
-
-fn normalize_account(account: String) -> Result<String, String> {
-    let account = account.trim().to_owned();
-    if account.is_empty() {
-        return Err("account (key) must not be empty".into());
-    }
-    if account.len() > 512 {
-        return Err("account string is too long (max 512)".into());
-    }
-    Ok(account)
-}
-
-/// Writes arbitrary UTF-8 text under a **user-chosen account** string (OS keyring entry key).
-#[tauri::command]
-fn user_set_secret(app: tauri::AppHandle, account: String, secret: String) -> Result<(), String> {
-    let account = normalize_account(account)?;
-    app.keyring()
-        .store
-        .set_password(&account, &secret)
-        .map_err(|e| e.to_string())
-}
-
-/// Reads the secret for the given account, if present.
-#[tauri::command]
-fn user_get_secret(app: tauri::AppHandle, account: String) -> Result<Option<String>, String> {
-    let account = normalize_account(account)?;
-    app.keyring()
-        .store
-        .get_password(&account)
-        .map_err(|e| e.to_string())
-}
-
-/// Removes the keyring entry for this account (no error if it did not exist).
-#[tauri::command]
-fn user_delete_secret(app: tauri::AppHandle, account: String) -> Result<(), String> {
-    let account = normalize_account(account)?;
-    app.keyring()
-        .store
-        .delete(&account)
-        .map_err(|e| e.to_string())
-}
 
 /// Writes a UTF-8 secret directly via [`KeyringStore`] (no IPC session required).
 #[tauri::command]
@@ -86,9 +45,6 @@ fn demo_session_store(app: tauri::AppHandle) -> Result<String, String> {
 pub fn run() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
-            user_set_secret,
-            user_get_secret,
-            user_delete_secret,
             demo_write_secret,
             demo_read_secret,
             demo_session_store,

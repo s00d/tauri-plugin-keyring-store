@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-11-08
+
+### Security
+
+- **Vault procedures no longer return private keys to the webview.** `SLIP10Generate` and `BIP39Recover` returned the 65-byte extended private key, `SLIP10Derive` the derived private key. They now return nothing / the chain code, as Stronghold does.
+- **Password commands reject `kp:` accounts.** Vault keys and store records live under `kp:v1:…` accounts in the same service, so `getPasswords` could read vault key material directly and `setPasswords` could overwrite it.
+- **No mnemonic words in errors.** An invalid BIP39 mnemonic produced an error that named the unknown word (sent to JS and easy to log). Crypto errors now use fixed messages.
+- **No secrets in `Debug` output.** `PasswordEntryDto`, `PasswordBackupEntryDto` and `ProcedureDto` redact secrets, mnemonics and passphrases.
+- Secrets, passphrases, decrypted backups, derived keys and seed buffers are wiped after use (`zeroize`, also enabled in `argon2` / `chacha20poly1305`).
+- `SLIP10Generate` `sizeBytes` must be within 16..=64 (any size was allocated before).
+
+### Fixed
+
+- **`generateBIP39` returned key bytes instead of the mnemonic**, so the generated phrase could never be backed up. It now returns the 24-word mnemonic (UTF-8 bytes) and writes the master key to the output location.
+- **Binary ids were broken in guest-js.** `Uint8Array` / `ArrayBuffer` / iterable client, vault, record and store keys were serialized as JSON objects and rejected by Rust; they are now sent as byte arrays. Values accept `Uint8Array` too.
+- **Byte store keys** (`StoreKey` allowed them in TS) failed because Rust expected a string; a byte key now addresses the same record as the equal UTF-8 text key.
+- **Imports were partial on error.** `import_passwords_plain` / `import_passwords_encrypted` wrote rows until the first invalid one and had no item limit; the whole backup is now validated first (max 256 rows).
+- Keyring I/O ran on async worker threads and could stall the runtime while the OS showed a keychain prompt or unlocked a collection; it now runs on blocking threads.
+- `save` now requires a loaded session, like Stronghold.
+
+### Changed
+
+- **Breaking:** procedure return values above; `Error` is `#[non_exhaustive]` and has a new `NoStorageAccess` variant (locked store, cancelled prompt, missing entitlement); `KeyringStore::account_store_key` takes `impl AsRef<[u8]>`.
+- Edition 2024, MSRV 1.88. `argon2` 0.6, `chacha20poly1305` 0.11 (encrypted backups from 0.1.x still decrypt), `base64` 0.23; removed unused `log`, `rand` and the `generic-array` pin.
+- guest-js built with Vite 8 (ESM + CJS), TypeScript 6, Vitest 5; separate `index.d.cts`, nested `exports`, `sideEffects: false`; dist checked with publint, attw and an export smoke test. Rollup and tslib removed.
+- Tests: IPC tests through `tauri::test`, procedure tests on the keyring-core mock store, and a live write/read/delete test against the real OS store.
+- CI on Linux (gnome-keyring), macOS and Windows plus Android and iOS builds. Windows test binaries embed the Common-Controls v6 manifest.
+- Example: tauri 2.12, password API from JS, vault demo, log rendered as text (it used `v-html` with secret values), autocorrect / autocapitalize off.
+
 ## [0.1.5] - 2026-05-13
 
 ### Changed

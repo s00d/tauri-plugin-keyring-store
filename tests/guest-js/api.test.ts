@@ -68,4 +68,21 @@ describe('tauri-plugin-keyring-store-api', () => {
     )
     expect(out).toEqual(new Uint8Array([1, 2, 3]))
   })
+
+  it('binary ids and values are sent as number arrays, not JSON objects', async () => {
+    invokeMock.mockResolvedValue(null)
+    const api = await import('../../guest-js/index.ts')
+    const session = await api.KeyringSession.load('/p', '')
+    const client = await session.createClient(new Uint8Array([1, 2]))
+    await client.getStore().insert(new Uint8Array([107]).buffer, new Uint8Array([9]))
+    await client.getVault(new Set([5])).insert('rec', new Uint8Array([7, 8]))
+    const loc = api.Location.generic(new Uint8Array([3]), 'r')
+
+    const args = (cmd: string) =>
+      invokeMock.mock.calls.find((c) => c[0] === `plugin:keyring-store|${cmd}`)?.[1]
+    expect(args('create_client')).toEqual({ snapshotPath: '/p', client: [1, 2] })
+    expect(args('save_store_record')).toMatchObject({ client: [1, 2], key: [107], value: [9] })
+    expect(args('save_secret')).toMatchObject({ vault: [5], recordPath: 'rec', secret: [7, 8] })
+    expect(loc.payload).toEqual({ vault: [3], record: 'r' })
+  })
 })

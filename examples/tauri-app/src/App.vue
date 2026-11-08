@@ -10,6 +10,7 @@ import {
   jsExampleStore,
   jsOpenSessionFromUi,
   jsSessionRoundtrip,
+  jsVaultDemo,
   pluginPing,
   rustExampleRead,
   rustExampleSession,
@@ -17,7 +18,7 @@ import {
   setUserSecret,
 } from "./keyring";
 
-const response = ref("");
+const log = ref<string[]>([]);
 
 const customAccount = ref("example.user.my.token");
 const customSecret = ref("");
@@ -30,7 +31,8 @@ function syncSessionStatus(): void {
 }
 
 function appendLog(line: string): void {
-  response.value += `[${new Date().toLocaleTimeString()}] ${line}<br>`;
+  // Rendered as text, never as HTML: lines can contain secrets read back from the keyring.
+  log.value.push(`[${new Date().toLocaleTimeString()}] ${line}`);
 }
 
 async function run(fn: () => Promise<string>): Promise<void> {
@@ -57,6 +59,7 @@ const onUserDelete = () => run(() => deleteUserSecret(customAccount.value));
 const onRustWrite = () => run(() => rustExampleWrite());
 const onRustRead = () => run(() => rustExampleRead());
 const onRustSession = () => run(() => rustExampleSession());
+const onVaultDemo = () => run(() => jsVaultDemo());
 
 const onDemoStoreJs = () =>
   run(async () => {
@@ -96,18 +99,18 @@ const onSessionClose = () =>
     <h1>tauri-plugin-keyring-store example</h1>
 
     <section class="panel">
-      <h2>Your data (Rust → OS keyring)</h2>
+      <h2>Your data (JS password API → OS keyring)</h2>
       <p class="hint">
         <strong>Account</strong> is the credential entry name inside your app service (bundle id). Use one stable string per secret you store.
       </p>
       <div class="fields">
         <label class="field">
           <span>Account</span>
-          <input v-model="customAccount" type="text" autocomplete="off" spellcheck="false" />
+          <input v-model="customAccount" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />
         </label>
         <label class="field">
           <span>Secret (plain text)</span>
-          <input v-model="customSecret" type="password" autocomplete="off" />
+          <input v-model="customSecret" type="password" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />
         </label>
       </div>
       <div class="row">
@@ -135,7 +138,7 @@ const onSessionClose = () =>
       </div>
       <label class="field inline">
         <span>Snapshot id</span>
-        <input v-model="customSnapshot" type="text" autocomplete="off" spellcheck="false" placeholder="custom-demo" />
+        <input v-model="customSnapshot" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="custom-demo" />
       </label>
       <div class="row">
         <button type="button" @click="onUserJsRoundtrip">JS: write secret then read back</button>
@@ -153,10 +156,13 @@ const onSessionClose = () =>
         <button type="button" @click="onRustRead">Rust: read demo secret</button>
         <button type="button" @click="onRustSession">Rust: session-scoped store</button>
         <button type="button" @click="onDemoStoreJs">JS: KeyringSession store</button>
+        <button type="button" @click="onVaultDemo">JS: vault BIP39 + sign</button>
       </div>
     </section>
 
-    <div class="log" v-html="response" />
+    <div class="log">
+      <div v-for="(line, i) in log" :key="i">{{ line }}</div>
+    </div>
   </main>
 </template>
 

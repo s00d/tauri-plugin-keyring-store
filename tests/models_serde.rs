@@ -124,3 +124,34 @@ fn password_backup_encrypted_dto_shape() {
     assert_eq!(v["formatVersion"], 1);
     assert!(v["salt"].as_str().is_some());
 }
+
+#[test]
+fn debug_output_redacts_secrets() {
+    let entry = PasswordEntryDto {
+        account: "acc".into(),
+        secret: "hunter2".into(),
+    };
+    let backup = PasswordBackupPlainDto {
+        format_version: 1,
+        entries: vec![PasswordBackupEntryDto {
+            account: "acc".into(),
+            secret: Some("hunter2".into()),
+        }],
+    };
+    let proc = ProcedureDto::BIP39Recover {
+        mnemonic: "hunter2 words".into(),
+        passphrase: Some("hunter2".into()),
+        output: LocationDto::Generic {
+            vault: BytesDto::Text("v".into()),
+            record: BytesDto::Text("r".into()),
+        },
+    };
+    for dbg in [
+        format!("{entry:?}"),
+        format!("{backup:?}"),
+        format!("{proc:?}"),
+    ] {
+        assert!(!dbg.contains("hunter2"), "{dbg}");
+        assert!(dbg.contains("<redacted>"), "{dbg}");
+    }
+}

@@ -44,9 +44,9 @@ mod crypto;
 
 pub use error::{Error, Result};
 pub use models::*;
-pub use naming::{join_prefix, split_prefixed, PREFIX_SEPARATOR};
+pub use naming::{PREFIX_SEPARATOR, join_prefix, split_prefixed};
 pub use plugin::KeyringPlugin;
-pub use store::{KeyringStore, SessionRegistry};
+pub use store::{INTERNAL_ACCOUNT_PREFIX, KeyringStore, SessionRegistry};
 
 use tauri::plugin::{Builder as PluginBuilder, TauriPlugin};
 use tauri::{Manager, Runtime};
@@ -135,4 +135,146 @@ impl Builder {
 /// Shorthand for `Builder::default().build()`. Use [`Builder`] to set a custom service name.
 pub fn init<R: Runtime>() -> TauriPlugin<R> {
     Builder::default().build()
+}
+
+#[cfg(test)]
+mod ipc_tests {
+    use serde_json::{Value, json};
+    use tauri::ipc::{CallbackFn, InvokeBody};
+    use tauri::test::{
+        INVOKE_KEY, MockRuntime, get_ipc_response, mock_builder, mock_context, noop_assets,
+    };
+    use tauri::webview::InvokeRequest;
+    use tauri::{Manager, WebviewWindow};
+
+    const COMMANDS: &[&str] = &[
+        "set_passwords",
+        "get_passwords",
+        "delete_passwords",
+        "password_exists",
+        "import_passwords_plain",
+        "initialize",
+        "destroy",
+        "get_store_record",
+        "save_store_record",
+        "remove_store_record",
+    ];
+
+    fn app() -> (tauri::App<MockRuntime>, WebviewWindow<MockRuntime>) {
+        crate::backend::use_mock_store_for_tests();
+        let mut context = mock_context(noop_assets());
+        // The mock context carries no plugin ACL manifests: allow the commands under test the
+        // way a capability with `keyring-store:default` would (local origin only).
+        for cmd in COMMANDS {
+            context.runtime_authority_mut().__allow_command(
+                format!("plugin:keyring-store|{cmd}"),
+                tauri::utils::acl::ExecutionContext::Local,
+            );
+        }
+        let app = mock_builder()
+            .plugin(
+                crate::Builder::new()
+                    .service("keyring-store.ipc-test")
+                    .build(),
+            )
+            .build(context)
+            .expect("build mock app");
+        let webview = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .expect("build webview");
+        (app, webview)
+    }
+
+    fn call(webview: &WebviewWindow<MockRuntime>, cmd: &str, body: Value) -> Result<Value, String> {
+        let request = InvokeRequest {
+            cmd: format!("plugin:keyring-store|{cmd}"),
+            callback: CallbackFn(0),
+            error: CallbackFn(1),
+            // The app's own (local) origin; tauri rejects calls from other origins.
+            url: if cfg!(windows) {
+                "http://tauri.localhost"
+            } else {
+                "tauri://localhost"
+            }
+            .parse()
+            .expect("valid invoke URL"),
+            body: InvokeBody::Json(body),
+            headers: Default::default(),
+            invoke_key: INVOKE_KEY.to_string(),
+        };
+        get_ipc_response(webview, request)
+            .map(|r| r.deserialize::<Value>().expect("json response"))
+            .map_err(|e| e.to_string())
+    }
+
+    #[test]
+    fn password_commands_roundtrip_and_guard_internal_accounts() {
+        let (_app, w) = app();
+        call(
+            &w,
+            "set_passwords",
+            json!({"entries": [{"account": "ipc.a", "secret": "s1"}]}),
+        )
+        .unwrap();
+        let got = call(
+            &w,
+            "get_passwords",
+            json!({"accounts": ["ipc.a", "ipc.missing"]}),
+        )
+        .unwrap();
+        assert_eq!(got, json!(["s1", null]));
+
+        // Vault key material lives under `kp:` accounts: the password API must not reach it.
+        let err = call(&w, "get_passwords", json!({"accounts": ["kp:v1:x"]})).unwrap_err();
+        assert!(err.contains("reserved"), "{err}");
+
+        // Import validates every row before writing any of them.
+        let backup = json!({"backup": {"formatVersion": 1, "entries": [
+            {"account": "ipc.b", "secret": "s2"},
+            {"account": "kp:evil", "secret": "x"}
+        ]}});
+        assert!(call(&w, "import_passwords_plain", backup).is_err());
+        let got = call(&w, "get_passwords", json!({"accounts": ["ipc.b"]})).unwrap();
+        assert_eq!(got, json!([null]));
+
+        call(&w, "delete_passwords", json!({"accounts": ["ipc.a"]})).unwrap();
+        assert_eq!(
+            call(&w, "password_exists", json!({"account": "ipc.a"})).unwrap(),
+            json!(false)
+        );
+    }
+
+    #[test]
+    fn store_records_need_a_session_and_accept_byte_keys() {
+        let (app, w) = app();
+        let rec = |key: Value| json!({"snapshotPath": "/s", "client": "c", "key": key});
+        let err = call(&w, "get_store_record", rec(json!("k"))).unwrap_err();
+        assert!(err.contains("session not initialized"), "{err}");
+
+        call(
+            &w,
+            "initialize",
+            json!({"snapshotPath": "/s", "password": "pw"}),
+        )
+        .unwrap();
+        let mut save = rec(json!("k"));
+        save["value"] = json!([1, 2, 3]);
+        assert_eq!(call(&w, "save_store_record", save).unwrap(), Value::Null);
+        // A byte key equal to the UTF-8 of a text key addresses the same record.
+        assert_eq!(
+            call(&w, "get_store_record", rec(json!([107]))).unwrap(),
+            json!([1, 2, 3])
+        );
+        assert_eq!(
+            call(&w, "remove_store_record", rec(json!("k"))).unwrap(),
+            json!([1, 2, 3])
+        );
+        assert_eq!(
+            call(&w, "get_store_record", rec(json!("k"))).unwrap(),
+            Value::Null
+        );
+
+        call(&w, "destroy", json!({"snapshotPath": "/s"})).unwrap();
+        assert!(!app.state::<crate::KeyringPlugin>().sessions.contains("/s"));
+    }
 }

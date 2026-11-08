@@ -5,7 +5,7 @@
 
 use std::{fmt, time::Duration};
 
-use serde::{de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer, de::Visitor};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -172,18 +172,22 @@ impl Serialize for KeyType {
 }
 
 /// Stronghold-shaped crypto or signing operation (requires the **`crypto`** crate feature).
-#[derive(Debug, Clone, Deserialize, Serialize)]
+///
+/// `Debug` output redacts the mnemonic and passphrases.
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(tag = "type", content = "payload")]
 pub enum ProcedureDto {
-    /// Generate a new SLIP10 master and write the extended key to `output`.
+    /// Generate a new SLIP10 master and write the extended key to `output`. Returns nothing
+    /// (key material never leaves Rust).
     SLIP10Generate {
         /// Target vault location for the new master key material.
         output: LocationDto,
-        /// Seed length in bytes (default 32, clamped to at least 16).
+        /// Seed length in bytes (default 32, must be within `16..=64`).
         #[serde(rename = "sizeBytes")]
         size_bytes: Option<usize>,
     },
-    /// Derive a child SLIP10 key along `chain` and write to `output`.
+    /// Derive a child SLIP10 key along `chain` and write to `output`. Returns the 32-byte
+    /// chain code of the derived key (as Stronghold does), never the private key.
     SLIP10Derive {
         /// Hardened segment indices (same semantics as Stronghold).
         chain: Vec<u32>,
@@ -192,7 +196,7 @@ pub enum ProcedureDto {
         /// Where to write derived extended key bytes.
         output: LocationDto,
     },
-    /// Restore BIP39 mnemonic to SLIP10 master at `output`.
+    /// Restore BIP39 mnemonic to SLIP10 master at `output`. Returns nothing.
     BIP39Recover {
         /// Space-separated mnemonic (English wordlist).
         mnemonic: String,
@@ -201,7 +205,8 @@ pub enum ProcedureDto {
         /// Where to write extended master key bytes.
         output: LocationDto,
     },
-    /// Generate entropy, build an English mnemonic, derive the BIP39 seed → SLIP10 master, and write extended key bytes to `output` (return value matches written bytes).
+    /// Generate entropy, build an English mnemonic, derive the BIP39 seed → SLIP10 master and
+    /// write it to `output`. Returns the mnemonic as UTF-8 bytes so the user can back it up.
     BIP39Generate {
         /// Optional BIP39 passphrase for seed derivation.
         passphrase: Option<String>,
@@ -228,7 +233,9 @@ pub enum ProcedureDto {
 }
 
 /// One row for the bulk **set passwords** IPC command (`account` + plaintext `secret`).
-#[derive(Debug, Clone, Deserialize, Serialize)]
+///
+/// `Debug` output redacts the secret.
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PasswordEntryDto {
     /// Logical account id (often `prefix.name` from [`crate::join_prefix`]).
@@ -238,7 +245,9 @@ pub struct PasswordEntryDto {
 }
 
 /// Single entry in a plaintext password backup (export/import).
-#[derive(Debug, Clone, Deserialize, Serialize)]
+///
+/// `Debug` output redacts the secret.
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PasswordBackupEntryDto {
     /// Account id included in the backup.
@@ -269,4 +278,73 @@ pub struct PasswordBackupEncryptedDto {
     pub nonce: String,
     /// Ciphertext including Poly1305 tag (Base64).
     pub ciphertext: String,
+}
+
+const REDACTED: &str = "<redacted>";
+
+fn redact<T>(v: &Option<T>) -> Option<&'static str> {
+    v.as_ref().map(|_| REDACTED)
+}
+
+impl fmt::Debug for ProcedureDto {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::SLIP10Generate { output, size_bytes } => f
+                .debug_struct("SLIP10Generate")
+                .field("output", output)
+                .field("size_bytes", size_bytes)
+                .finish(),
+            Self::SLIP10Derive {
+                chain,
+                input,
+                output,
+            } => f
+                .debug_struct("SLIP10Derive")
+                .field("chain", chain)
+                .field("input", input)
+                .field("output", output)
+                .finish(),
+            Self::BIP39Recover {
+                passphrase, output, ..
+            } => f
+                .debug_struct("BIP39Recover")
+                .field("mnemonic", &REDACTED)
+                .field("passphrase", &redact(passphrase))
+                .field("output", output)
+                .finish(),
+            Self::BIP39Generate { passphrase, output } => f
+                .debug_struct("BIP39Generate")
+                .field("passphrase", &redact(passphrase))
+                .field("output", output)
+                .finish(),
+            Self::PublicKey { ty, private_key } => f
+                .debug_struct("PublicKey")
+                .field("ty", ty)
+                .field("private_key", private_key)
+                .finish(),
+            Self::Ed25519Sign { private_key, msg } => f
+                .debug_struct("Ed25519Sign")
+                .field("private_key", private_key)
+                .field("msg", msg)
+                .finish(),
+        }
+    }
+}
+
+impl fmt::Debug for PasswordEntryDto {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("PasswordEntryDto")
+            .field("account", &self.account)
+            .field("secret", &REDACTED)
+            .finish()
+    }
+}
+
+impl fmt::Debug for PasswordBackupEntryDto {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("PasswordBackupEntryDto")
+            .field("account", &self.account)
+            .field("secret", &redact(&self.secret))
+            .finish()
+    }
 }
