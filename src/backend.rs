@@ -1,6 +1,6 @@
 //! Platform-specific registration of the default [`keyring_core`] store.
 //!
-//! See the crate README for the matrix of OS backends.
+//! Platform matrix: <https://s00d.github.io/tauri-plugin-keyring-store/platforms/overview>.
 
 use std::sync::{Mutex, PoisonError};
 use std::time::{Duration, Instant};

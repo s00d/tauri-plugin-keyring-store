@@ -4,6 +4,7 @@
   "author": "s00d",
   "description": "JavaScript API for tauri-plugin-keyring-store — OS keychain / credential manager storage with Stronghold-compatible sessions.",
   "license": "MIT OR Apache-2.0",
+  "homepage": "https://s00d.github.io/tauri-plugin-keyring-store/",
   "type": "module",
   "sideEffects": false,
   "types": "./dist-js/index.d.ts",

@@ -9,6 +9,7 @@ rust-version = "1.88"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/s00d/tauri-plugin-keyring-store"
 documentation = "https://docs.rs/tauri-plugin-keyring-store"
+homepage = "https://s00d.github.io/tauri-plugin-keyring-store/"
 keywords = ["tauri", "tauri-plugin", "keyring", "credential", "secrets"]
 categories = ["authentication", "api-bindings"]
 include = ["/src/**/*", "/permissions/**/*", "/tests/*.rs", "/build.rs", "/windows-test-manifest.xml", "/Cargo.toml", "/README.md", "/CHANGELOG.md", "/LICENSE-MIT", "/LICENSE-APACHE"]

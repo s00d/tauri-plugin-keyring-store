@@ -240,7 +240,7 @@ pub enum ProcedureDto {
 pub struct PasswordEntryDto {
     /// Logical account id (often `prefix.name` from [`crate::join_prefix`]).
     pub account: String,
-    /// Secret value to store (plaintext over IPC — see README security notes).
+    /// Secret value to store (plaintext over IPC — see <https://s00d.github.io/tauri-plugin-keyring-store/guides/security>).
     pub secret: String,
 }
 

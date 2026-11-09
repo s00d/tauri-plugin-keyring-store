@@ -4,7 +4,7 @@
 )]
 
 //! OS keychain / credential-manager storage with a Stronghold-shaped API (sessions, vault
-//! locations, optional SLIP10/BIP39 procedures). See the crate README for IPC and guest-js.
+//! locations, optional SLIP10/BIP39 procedures). Guides, IPC and guest-js: <https://s00d.github.io/tauri-plugin-keyring-store/>.
 //!
 //! ## Rust usage
 //!
