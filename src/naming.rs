@@ -66,7 +66,7 @@ pub fn split_prefixed(account: &str) -> Result<(String, String)> {
     }
     if n.contains(PREFIX_SEPARATOR) {
         return Err(Error::Naming(
-            "only one separator allowed use nested naming in the app layer".into(),
+            "only one separator allowed; use nested naming in the app layer".into(),
         ));
     }
     Ok((p.to_string(), n.to_string()))

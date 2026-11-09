@@ -5,11 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.3.2] - 2026-11-09
+
+No behaviour changes.
 
 ### Documentation
 
 - Documentation site at https://s00d.github.io/tauri-plugin-keyring-store/ (guides, platforms, security notes, generated API / command / permission reference). The README is now a short overview.
+- JSDoc for every `tauri-plugin-keyring-store-api` export (shows up in editor hints) and doc comments for every Tauri command.
+- `homepage` in `Cargo.toml` and `package.json` points to the site.
+
+### Fixed
+
+- `split_prefixed` error message: missing `;` in "only one separator allowed; use nested naming in the app layer" (now the same text as `splitKeyPrefix` in JS).
 
 ## [0.3.1] - 2026-11-08
 
@@ -133,6 +141,7 @@ No API changes.
 - Rust [`naming`](https://docs.rs/tauri-plugin-keyring-store/latest/tauri_plugin_keyring_store/naming/index.html) helpers (`join_prefix`, `split_prefixed`) and guest-js `joinKeyPrefix` / `splitKeyPrefix`.
 - Guest-js: `getPasswords`, `setPasswords`, `deletePasswords`, `passwordExists`, `exportPasswordsPlain`, `importPasswordsPlain`, `exportPasswordsEncrypted`, `importPasswordsEncrypted`.
 
+[0.3.2]: https://github.com/s00d/tauri-plugin-keyring-store/releases/tag/v0.3.2
 [0.3.1]: https://github.com/s00d/tauri-plugin-keyring-store/releases/tag/v0.3.1
 [0.3.0]: https://github.com/s00d/tauri-plugin-keyring-store/releases/tag/v0.3.0
 [0.2.0]: https://github.com/s00d/tauri-plugin-keyring-store/releases/tag/v0.2.0

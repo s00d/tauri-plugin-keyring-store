@@ -38,7 +38,7 @@ const quickLinks: ButtonProps[] = [
       :links="heroLinks"
     >
       <template #headline>
-        <UButton to="/changelog" label="0.3.1: kp: guard ignores case, backend init is retried" trailing-icon="i-lucide-arrow-right" color="neutral" variant="subtle" size="sm" />
+        <UButton to="/changelog" label="0.3.2: new documentation site" trailing-icon="i-lucide-arrow-right" color="neutral" variant="subtle" size="sm" />
       </template>
     </UPageHero>
 
