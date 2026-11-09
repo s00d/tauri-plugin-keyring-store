@@ -6,21 +6,25 @@
 
 import { invoke } from '@tauri-apps/api/core'
 
+/** Client name: text, or bytes (`Uint8Array`, `ArrayBuffer`, `number[]`). A byte id equal to the UTF-8 of a text id is the same client. */
 export type ClientPath =
   | string
   | Iterable<number>
   | ArrayLike<number>
   | ArrayBuffer
+/** Vault name: text or bytes, like [`ClientPath`]. */
 export type VaultPath =
   | string
   | Iterable<number>
   | ArrayLike<number>
   | ArrayBuffer
+/** Vault record name: text or bytes, like [`ClientPath`]. */
 export type RecordPath =
   | string
   | Iterable<number>
   | ArrayLike<number>
   | ArrayBuffer
+/** Store record key: text or bytes; a byte key addresses the same record as the equal UTF-8 text key. */
 export type StoreKey =
   | string
   | Iterable<number>
@@ -48,6 +52,7 @@ export interface Duration {
   nanos: number
 }
 
+/** Address of a vault record: a named record (`generic`) or a numbered one (`counter`), always inside one vault. */
 export class Location {
   type: string
   payload: Record<string, unknown>
@@ -57,6 +62,7 @@ export class Location {
     this.payload = payload
   }
 
+  /** Record `record` in vault `vault`. */
   static generic(vault: VaultPath, record: RecordPath): Location {
     return new Location('Generic', {
       vault: toBytesDto(vault),
@@ -64,6 +70,7 @@ export class Location {
     })
   }
 
+  /** Record number `counter` in vault `vault`. Stored under the text of the number: `counter(v, 7)` is the same record as `generic(v, '7')`. */
   static counter(vault: VaultPath, counter: number): Location {
     return new Location('Counter', {
       vault: toBytesDto(vault),
@@ -158,6 +165,7 @@ class ProcedureExecutor {
     }).then((n) => Uint8Array.from(n))
   }
 
+  /** Reads the Ed25519 key at `privateKeyLocation` (a 32-byte key or a 65-byte SLIP10 extended key) and resolves to its 32-byte public key. */
   async getEd25519PublicKey(privateKeyLocation: Location): Promise<Uint8Array> {
     return await invoke<number[]>('plugin:keyring-store|execute_procedure', {
       ...this.procedureArgs,
@@ -171,6 +179,7 @@ class ProcedureExecutor {
     }).then((n) => Uint8Array.from(n))
   }
 
+  /** Signs the UTF-8 bytes of `msg` with the Ed25519 key at `privateKeyLocation`; resolves to the 64-byte signature. */
   async signEd25519(
     privateKeyLocation: Location,
     msg: string
@@ -198,10 +207,12 @@ export class KeyringClient {
     this.name = name
   }
 
+  /** Vault `name` of this client: binary records and the SLIP10 / BIP39 / Ed25519 procedures. No IPC call. */
   getVault(name: VaultPath): KeyringVault {
     return new KeyringVault(this.path, this.name, name)
   }
 
+  /** Key-value byte store of this client. No IPC call. */
   getStore(): KeyringStoreView {
     return new KeyringStoreView(this.path, this.name)
   }
@@ -217,6 +228,7 @@ export class KeyringStoreView {
     this.client = client
   }
 
+  /** Reads the record `key`; `null` if it does not exist. */
   async get(key: StoreKey): Promise<Uint8Array | null> {
     return await invoke<number[] | null>('plugin:keyring-store|get_store_record', {
       snapshotPath: this.path,
@@ -236,6 +248,7 @@ export class KeyringStoreView {
     })
   }
 
+  /** Deletes the record `key`; resolves to its previous bytes, or `null` if there was none. */
   async remove(key: StoreKey): Promise<Uint8Array | null> {
     return await invoke<number[] | null>(
       'plugin:keyring-store|remove_store_record',
@@ -264,6 +277,7 @@ export class KeyringVault extends ProcedureExecutor {
     this.name = name
   }
 
+  /** Writes `secret` to record `recordPath` of this vault (replaces an existing one). Stored as Base64 text in the OS store. */
   async insert(recordPath: RecordPath, secret: Bytes): Promise<void> {
     await invoke('plugin:keyring-store|save_secret', {
       snapshotPath: this.path,
@@ -303,6 +317,7 @@ export class KeyringSession {
     this.path = path
   }
 
+  /** Registers session `path` for this process (`initialize`). `path` is a logical id, not a file; `password` is not verified and is zeroized in Rust. */
   static async load(path: string, password: string): Promise<KeyringSession> {
     await invoke('plugin:keyring-store|initialize', {
       snapshotPath: path,
@@ -311,12 +326,14 @@ export class KeyringSession {
     return new KeyringSession(path)
   }
 
+  /** Forgets the session (`destroy`). Entries stay in the OS store; calls with this path fail until `load` again. */
   async unload(): Promise<void> {
     await invoke('plugin:keyring-store|destroy', {
       snapshotPath: this.path
     })
   }
 
+  /** Opens client `client` of a loaded session. Fails with `session not initialized` if the session is not loaded. */
   async loadClient(client: ClientPath): Promise<KeyringClient> {
     await invoke('plugin:keyring-store|load_client', {
       snapshotPath: this.path,
@@ -325,6 +342,7 @@ export class KeyringSession {
     return new KeyringClient(this.path, client)
   }
 
+  /** Same as `loadClient`: clients need no creation in the OS store. Kept for Stronghold parity. */
   async createClient(client: ClientPath): Promise<KeyringClient> {
     await invoke('plugin:keyring-store|create_client', {
       snapshotPath: this.path,
@@ -413,6 +431,7 @@ export async function exportPasswordsPlain(
   )
 }
 
+/** Restores a backup from `exportPasswordsPlain`. The whole backup (format version 1, max 256 rows, no `kp:` accounts) is validated before anything is written; rows with a `null` secret are skipped. */
 export async function importPasswordsPlain(
   backup: PasswordBackupPlainDto
 ): Promise<void> {
@@ -430,6 +449,7 @@ export async function exportPasswordsEncrypted(
   )
 }
 
+/** Decrypts a backup from `exportPasswordsEncrypted` with `passphrase` and restores it like `importPasswordsPlain`. A wrong passphrase rejects and writes nothing. */
 export async function importPasswordsEncrypted(
   backup: PasswordBackupEncryptedDto,
   passphrase: string

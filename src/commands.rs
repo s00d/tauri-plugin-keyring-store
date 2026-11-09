@@ -106,6 +106,7 @@ fn store_of(state: &State<'_, KeyringPlugin>) -> Arc<KeyringStore> {
     state.store.clone()
 }
 
+/// Reads UTF-8 secrets by raw account; `None` for a missing one, in input order (max 256).
 #[command]
 pub(crate) async fn get_passwords(
     state: State<'_, KeyringPlugin>,
@@ -116,6 +117,7 @@ pub(crate) async fn get_passwords(
     blocking(move || accounts.iter().map(|a| store.get_password(a)).collect()).await
 }
 
+/// Writes `{ account, secret }` pairs (max 256); every account is checked before the first write.
 #[command]
 pub(crate) async fn set_passwords(
     state: State<'_, KeyringPlugin>,
@@ -134,6 +136,7 @@ pub(crate) async fn set_passwords(
     .await
 }
 
+/// Deletes accounts (max 256); a missing account is not an error.
 #[command]
 pub(crate) async fn delete_passwords(
     state: State<'_, KeyringPlugin>,
@@ -144,6 +147,7 @@ pub(crate) async fn delete_passwords(
     blocking(move || accounts.iter().try_for_each(|a| store.delete(a))).await
 }
 
+/// `true` if the account holds a non-empty (after trim) secret.
 #[command]
 pub(crate) async fn password_exists(
     state: State<'_, KeyringPlugin>,
@@ -154,6 +158,7 @@ pub(crate) async fn password_exists(
     blocking(move || store.exists_nonempty(&account)).await
 }
 
+/// Returns the secrets of `accounts` as a plaintext backup (format version 1). Secrets reach the webview in the clear.
 #[command]
 pub(crate) async fn export_passwords_plain(
     state: State<'_, KeyringPlugin>,
@@ -164,6 +169,7 @@ pub(crate) async fn export_passwords_plain(
     blocking(move || collect_plain_backup(&store, accounts)).await
 }
 
+/// Restores a plaintext backup. The whole backup is validated (version, max 256 rows, account rules) before the first write.
 #[command]
 pub(crate) async fn import_passwords_plain(
     state: State<'_, KeyringPlugin>,
@@ -173,6 +179,7 @@ pub(crate) async fn import_passwords_plain(
     blocking(move || apply_plain_backup(&store, backup)).await
 }
 
+/// Returns the secrets of `accounts` encrypted with `passphrase` (Argon2id + ChaCha20-Poly1305).
 #[command]
 pub(crate) async fn export_passwords_encrypted(
     state: State<'_, KeyringPlugin>,
@@ -195,6 +202,7 @@ pub(crate) async fn export_passwords_encrypted(
     .await
 }
 
+/// Decrypts a backup from `export_passwords_encrypted` and restores it like `import_passwords_plain`.
 #[command]
 pub(crate) async fn import_passwords_encrypted(
     state: State<'_, KeyringPlugin>,
@@ -212,6 +220,7 @@ pub(crate) async fn import_passwords_encrypted(
     .await
 }
 
+/// Echoes `payload.value` back (diagnostics).
 #[command]
 pub(crate) async fn ping(payload: PingRequest) -> Result<PingResponse> {
     Ok(PingResponse {
@@ -219,6 +228,8 @@ pub(crate) async fn ping(payload: PingRequest) -> Result<PingResponse> {
     })
 }
 
+/// Registers session `snapshot_path` for this process.
+///
 /// The password is accepted for Stronghold API parity only and is **not verified** (any
 /// password opens any session): secrets are protected by the OS
 /// store, so it is wiped immediately and never stored or compared.
@@ -235,17 +246,20 @@ pub(crate) async fn initialize(
     Ok(())
 }
 
+/// Forgets the session `snapshot_path`. Stored entries are not touched.
 #[command]
 pub(crate) async fn destroy(state: State<'_, KeyringPlugin>, snapshot_path: PathBuf) -> Result<()> {
     state.sessions.remove(&snapshot_path.to_string_lossy());
     Ok(())
 }
 
+/// Writes nothing (entries are stored immediately); fails if the session is not loaded, like Stronghold.
 #[command]
 pub(crate) async fn save(state: State<'_, KeyringPlugin>, snapshot_path: PathBuf) -> Result<()> {
     require_session(&state, &snapshot_path).map(drop)
 }
 
+/// Checks that the session is loaded; clients need no creation in the OS store.
 #[command]
 pub(crate) async fn create_client(
     state: State<'_, KeyringPlugin>,
@@ -255,6 +269,7 @@ pub(crate) async fn create_client(
     require_session(&state, &snapshot_path).map(drop)
 }
 
+/// Checks that the session is loaded; clients need no creation in the OS store.
 #[command]
 pub(crate) async fn load_client(
     state: State<'_, KeyringPlugin>,
@@ -264,6 +279,7 @@ pub(crate) async fn load_client(
     require_session(&state, &snapshot_path).map(drop)
 }
 
+/// Reads a store record of a session client; `None` if missing.
 #[command]
 pub(crate) async fn get_store_record(
     state: State<'_, KeyringPlugin>,
@@ -276,6 +292,8 @@ pub(crate) async fn get_store_record(
     blocking(move || store.get_bytes(&store.account_store_key(&snap, &client, &key))).await
 }
 
+/// Writes a store record of a session client; returns the previous bytes, or `None`.
+///
 /// `lifetime` is accepted for Stronghold parity and ignored: OS stores have no expiry.
 #[command]
 pub(crate) async fn save_store_record(
@@ -298,6 +316,7 @@ pub(crate) async fn save_store_record(
     .await
 }
 
+/// Deletes a store record; returns its previous bytes, or `None`.
 #[command]
 pub(crate) async fn remove_store_record(
     state: State<'_, KeyringPlugin>,
@@ -316,6 +335,7 @@ pub(crate) async fn remove_store_record(
     .await
 }
 
+/// Writes a vault record (Base64 text in the OS store).
 #[command]
 pub(crate) async fn save_secret(
     state: State<'_, KeyringPlugin>,
@@ -335,6 +355,7 @@ pub(crate) async fn save_secret(
     .await
 }
 
+/// Deletes a vault record; a missing record is not an error.
 #[command]
 pub(crate) async fn remove_secret(
     state: State<'_, KeyringPlugin>,
@@ -351,6 +372,8 @@ pub(crate) async fn remove_secret(
     .await
 }
 
+/// Runs a SLIP10 / BIP39 / Ed25519 procedure on vault records. Returns only public data: a chain
+/// code, a public key, a signature, the new mnemonic or nothing; private keys stay in the store.
 #[cfg(feature = "crypto")]
 #[command]
 pub(crate) async fn execute_procedure(
